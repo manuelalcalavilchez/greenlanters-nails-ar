@@ -1,12 +1,14 @@
 // Patrones funcionales en el MVP (implementados en NailCanvas / nailRenderer).
-// 'stickers', 'stones' e 'images' están soportados como tipo de decoración
-// pero con assets de ejemplo — sustituir por catálogo real en Fase 3.
+// Los patrones avanzados tienen fallback visual seguro mientras se amplía el renderer.
 export const PATTERNS = [
   { id: 'solid', label: 'Color liso' },
   { id: 'gradient', label: 'Degradado' },
   { id: 'french', label: 'Francesa' },
-  { id: 'chrome', label: 'Cromado' }, // aproximado con gradiente metálico, no shader real
-  { id: 'glitter', label: 'Purpurina' }, // aproximado con ruido generado en canvas
+  { id: 'chrome', label: 'Cromado' },
+  { id: 'glitter', label: 'Purpurina' },
+  { id: 'swirl', label: 'Ondas neón' },
+  { id: 'gold-leaf', label: 'Pan de oro' },
+  { id: 'floral', label: 'Floral' },
 ];
 
 export const DECORATION_TYPES = [
@@ -15,6 +17,11 @@ export const DECORATION_TYPES = [
   { id: 'line', label: 'Línea' },
   { id: 'dot', label: 'Punto' },
   { id: 'image', label: 'Imagen personalizada' },
+  { id: 'glitter', label: 'Brillo' },
+  { id: 'pearl', label: 'Perla' },
+  { id: 'gold', label: 'Oro' },
+  { id: 'flower', label: 'Flor' },
+  { id: 'crystal', label: 'Cristal' },
 ];
 
 // Modelo de datos por uña individual.
@@ -25,8 +32,8 @@ export function createEmptyNail(finger) {
     baseColor: '#F4C7D7',
     tipColor: null,
     pattern: 'solid',
-    gradient: null, // { from: '#hex', to: '#hex', angle: 90 }
-    decorations: [], // [{ type, x, y, rotation, scale, color, src }]
+    gradient: null,
+    decorations: [],
   };
 }
 
