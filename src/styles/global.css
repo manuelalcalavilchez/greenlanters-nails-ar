@@ -1,0 +1,112 @@
+:root {
+  --primary: #B8336A;
+  --primary-light: #F4C7D7;
+  --bg: #FFFBFC;
+  --text: #2B2226;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--primary);
+  color: white;
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+}
+.app-header .brand { font-weight: 700; letter-spacing: 0.5px; }
+.app-header nav a { color: white; margin-left: 16px; text-decoration: none; font-size: 0.9rem; }
+
+.page { padding: 16px; max-width: 720px; margin: 0 auto; }
+
+button {
+  min-height: 44px; /* objetivo táctil accesible en móvil */
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  border: 1px solid #E5C9D3;
+  background: white;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+button.primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+button:disabled { opacity: 0.4; }
+
+.nail-editor__hands {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.finger-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.75rem; }
+
+.shape-selector, .nail-editor__copy-actions, .nail-editor__actions, .decoration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.shape-btn.active { background: var(--primary); color: white; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #ccc; padding: 0; min-height: unset; }
+
+.ar-camera__viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: black;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.ar-camera__viewport video,
+.ar-camera__viewport canvas.ar-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ar-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  background: rgba(0,0,0,0.65);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.ar-hint--error { background: rgba(180,30,30,0.85); }
+
+.ar-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ar-controls label { display: flex; flex-direction: column; font-size: 0.8rem; gap: 4px; }
+
+.privacy-note { font-size: 0.8rem; color: #666; }
+
+.saved-designs__grid, .catalog__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.saved-design-card { border: 1px solid #eee; border-radius: var(--radius); padding: 8px; }
