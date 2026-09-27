@@ -33,6 +33,7 @@ export default function ARCamera({ design }) {
     rafRef.current = null;
     landmarksRef.current = [];
     lastDetectionAtRef.current = 0;
+    smootherRef.current.reset();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -55,7 +56,7 @@ export default function ARCamera({ design }) {
       const labelled = devices.filter((device) => device.label);
       let constraints = {
         video: {
-          facingMode: { ideal: requestedMode },
+          facingMode: { exact: requestedMode },
           width: { ideal: 960 },
           height: { ideal: 540 },
           frameRate: { ideal: 30, max: 30 }
