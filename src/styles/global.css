@@ -345,3 +345,10 @@ button.primary:hover { background: #176B00; }
 .ar-live-adjust { background:rgba(8,45,5,.84); border:1px solid rgba(140,255,0,.35); }
 .ar-fine-tune { background:#fff; border:1px solid #DDE7D2; border-radius:12px; padding:9px 11px; }
 .ar-fine-tune summary { cursor:pointer; color:#082D05; font-weight:700; font-size:.82rem; }
+.ar-camera__viewport video {
+  z-index: 1;
+}
+.ar-camera__viewport canvas.ar-overlay {
+  z-index: 2;
+  pointer-events: none;
+}
