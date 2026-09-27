@@ -9,61 +9,136 @@ import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
 
-/**
- * Vista de prueba virtual (try-on) con cámara real + overlay de uñas.
- *
- * Props:
- *  - design: NailDesign actual (ver nailPatterns.js)
- *  - preferredHand: 'left' | 'right' — qué mano del diseño mostrar cuando se
- *    detecta una mano en cámara (una persona suele probarse una mano a la vez)
- */
-export default function ARCamera({ design, preferredHand = 'right' }) {
+export default function ARCamera({ design }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const smootherRef = useRef(createSmoother(0.35));
   const rafRef = useRef(null);
+  const facingModeRef = useRef('user');
 
-  const [status, setStatus] = useState('idle'); // idle | loading | running | no-hand | error
-  const [facingMode, setFacingMode] = useState('user'); // 'user' = frontal, 'environment' = trasera
-  // Empezamos deliberadamente más pequeño para que la primera prueba no
-  // tape la uña natural. La usuaria puede aumentarlo con el control.
-  const [manualAdjust, setManualAdjust] = useState({ scale: 0.72, offsetX: 0, offsetY: 0, rotation: 0, opacity: 1 });
+  const [status, setStatus] = useState('idle');
+  const [facingMode, setFacingMode] = useState('user');
+  const [cameraName, setCameraName] = useState('Cámara frontal');
+  const [manualAdjust, setManualAdjust] = useState({
+    scale: 0.72,
+    offsetX: 0,
+    offsetY: 0,
+    rotation: 0,
+    opacity: 1,
+  });
   const manualAdjustRef = useRef(manualAdjust);
-  const restartAfterFacingChangeRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     manualAdjustRef.current = manualAdjust;
   }, [manualAdjust]);
 
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  useEffect(() => {
+    facingModeRef.current = facingMode;
+  }, [facingMode]);
+
+  const stopCamera = useCallback((disposeTracker = true) => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-    disposeHandTracker();
+    if (disposeTracker) disposeHandTracker();
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const getVideoDevices = useCallback(async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((device) => device.kind === 'videoinput');
+  }, []);
+
+  const startCamera = useCallback(async (requestedMode = facingModeRef.current) => {
     setStatus('loading');
     setErrorMsg('');
+
     try {
+      stopCamera(false);
       await initHandTracker();
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      const devices = await getVideoDevices();
+      const currentLabel = requestedMode === 'user' ? 'Cámara frontal' : 'Cámara trasera';
+
+      let constraints = {
+        video: {
+          facingMode: { ideal: requestedMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
-      });
+      };
+
+      if (devices.length > 1) {
+        const labelled = devices.filter((device) => device.label);
+        const currentStreamLabel = streamRef.current?.getVideoTracks?.()[0]?.label || '';
+        const candidates = labelled.filter((device) => device.label !== currentStreamLabel);
+
+        if (requestedMode === 'environment') {
+          const rear = candidates.find((device) => /back|rear|environment|trasera|posterior/i.test(device.label));
+          if (rear) {
+            constraints.video = {
+              deviceId: { exact: rear.deviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            };
+          }
+        } else {
+          const front = candidates.find((device) => /front|user|facetime|frontal|delantera/i.test(device.label));
+          if (front) {
+            constraints.video = {
+              deviceId: { exact: front.deviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            };
+          }
+        }
+      }
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstError) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: requestedMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      }
+
       streamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      const settings = track?.getSettings?.() || {};
+
+      if (settings.facingMode) {
+        facingModeRef.current = settings.facingMode;
+        setFacingMode(settings.facingMode);
+      }
+
+      setCameraName(
+        settings.facingMode === 'environment'
+          ? 'Cámara trasera'
+          : requestedMode === 'environment'
+            ? 'Cámara trasera'
+            : currentLabel
+      );
+
       const video = videoRef.current;
       video.srcObject = stream;
       await video.play();
 
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
 
       setStatus('running');
       renderLoop();
@@ -73,15 +148,16 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
       setErrorMsg(
         err.name === 'NotAllowedError'
           ? 'Permiso de cámara denegado. Actívalo en los ajustes del navegador.'
-          : 'No se pudo acceder a la cámara.'
+          : 'No se pudo acceder a la cámara. Prueba de nuevo o cambia el permiso de cámara.'
       );
     }
-  }, [facingMode]);
+  }, [getVideoDevices, stopCamera]);
 
   function renderLoop() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+
     const ctx = canvas.getContext('2d');
 
     function tick() {
@@ -95,10 +171,11 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
           setStatus('running');
           result.landmarks.forEach((landmarks, i) => {
             const handednessLabel = result.handedness?.[i]?.[0]?.categoryName;
-            const hand = resolveHandedness(handednessLabel, facingMode === 'user');
+            const hand = resolveHandedness(
+              handednessLabel,
+              facingModeRef.current === 'user'
+            );
 
-            // Solo dibujamos el diseño de la mano que coincide con la mano
-            // detectada (o preferredHand si el diseño no distingue).
             if (design.hand && design.hand !== hand) return;
 
             const rectsRaw = estimateHandNailRects(landmarks, design, {
@@ -107,36 +184,39 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
             });
 
             for (const nail of design.nails) {
-              const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger]);
+              const smoothed = smootherRef.current.smooth(
+                nail.finger,
+                rectsRaw[nail.finger]
+              );
               if (!smoothed) continue;
-              const currentAdjust = manualAdjustRef.current;
-              const adjusted = applyManualAdjust(smoothed, currentAdjust, canvas);
-              drawNailDesign(ctx, adjusted, nail, currentAdjust.opacity);
+
+              const adjusted = applyManualAdjust(
+                smoothed,
+                manualAdjustRef.current,
+                canvas
+              );
+              drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
             }
           });
         }
       }
+
       rafRef.current = requestAnimationFrame(tick);
     }
+
     tick();
   }
 
   useEffect(() => {
-    return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => stopCamera(true);
+  }, [stopCamera]);
 
-  function toggleFacing() {
-    restartAfterFacingChangeRef.current = true;
-    stopCamera();
-    setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
+  async function toggleFacing() {
+    const nextMode = facingModeRef.current === 'user' ? 'environment' : 'user';
+    facingModeRef.current = nextMode;
+    setFacingMode(nextMode);
+    await startCamera(nextMode);
   }
-
-  useEffect(() => {
-    if (!restartAfterFacingChangeRef.current) return;
-    restartAfterFacingChangeRef.current = false;
-    startCamera();
-  }, [facingMode, startCamera]);
 
   function captureScreenshot() {
     const canvas = canvasRef.current;
@@ -145,8 +225,6 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
     out.width = canvas.width;
     out.height = canvas.height;
     const ctx = out.getContext('2d');
-    // Componer vídeo + overlay. Nota de privacidad: esto SÍ captura la mano
-    // real de la usuaria. Solo ocurre si ella pulsa "Capturar" explícitamente.
     ctx.drawImage(video, 0, 0, out.width, out.height);
     ctx.drawImage(canvas, 0, 0);
     return out.toDataURL('image/png');
@@ -155,17 +233,19 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
   function handleCaptureAndShare() {
     const dataUrl = captureScreenshot();
     const link = document.createElement('a');
-    link.download = 'diseno-uñas.png';
+    link.download = 'diseno-unas.png';
     link.href = dataUrl;
     link.click();
-    // Compartir por WhatsApp: usar Web Share API si está disponible (móvil);
-    // fallback a wa.me solo con texto (no se puede adjuntar imagen por URL).
+
     if (navigator.share) {
       fetch(dataUrl)
-        .then((r) => r.blob())
+        .then((response) => response.blob())
         .then((blob) => {
           const file = new File([blob], 'diseno-unas.png', { type: 'image/png' });
-          navigator.share({ files: [file], title: 'Mi diseño de uñas' }).catch(() => {});
+          navigator.share({
+            files: [file],
+            title: 'Mi diseño de uñas',
+          }).catch(() => {});
         });
     }
   }
@@ -173,38 +253,73 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
   return (
     <div className="ar-camera">
       <div className="ar-camera__viewport">
-        <video ref={videoRef} playsInline muted style={{ display: status === 'idle' ? 'none' : 'block' }} />
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ display: status === 'idle' ? 'none' : 'block' }}
+        />
         <canvas ref={canvasRef} className="ar-overlay" />
-        {status === 'no-hand' && <div className="ar-hint">No se detecta ninguna mano. Acércala a la cámara.</div>}
-        {status === 'error' && <div className="ar-hint ar-hint--error">{errorMsg}</div>}
+
+        {status === 'no-hand' && (
+          <div className="ar-hint">Acerca la mano a la cámara.</div>
+        )}
+
+        {status === 'loading' && (
+          <div className="ar-hint">Cambiando cámara…</div>
+        )}
+
+        {status === 'error' && (
+          <div className="ar-hint ar-hint--error">{errorMsg}</div>
+        )}
       </div>
 
       {status === 'idle' && (
-        <button type="button" className="primary" onClick={startCamera}>Activar cámara</button>
+        <button type="button" className="primary ar-start-button" onClick={() => startCamera('user')}>
+          Activar cámara
+        </button>
       )}
 
       {status !== 'idle' && (
         <div className="ar-controls">
-          <button type="button" onClick={toggleFacing}>Cambiar cámara</button>
-          <button type="button" onClick={handleCaptureAndShare}>Capturar / Compartir</button>
+          <button
+            type="button"
+            className="primary ar-camera-switch"
+            onClick={toggleFacing}
+            disabled={status === 'loading'}
+          >
+            {status === 'loading'
+              ? 'Cambiando…'
+              : 'Cambiar a ' + (facingMode === 'user' ? 'trasera' : 'frontal')}
+          </button>
+          <span className="ar-camera-current">{cameraName}</span>
 
-          <label>Tamaño
+          <button type="button" onClick={handleCaptureAndShare}>
+            Capturar / Compartir
+          </button>
+
+          <label>
+            Tamaño
             <input type="range" min="0.5" max="1.8" step="0.05" value={manualAdjust.scale}
               onChange={(e) => setManualAdjust((a) => ({ ...a, scale: Number(e.target.value) }))} />
           </label>
-          <label>Posición X
+          <label>
+            Posición X
             <input type="range" min="-50" max="50" step="1" value={manualAdjust.offsetX}
               onChange={(e) => setManualAdjust((a) => ({ ...a, offsetX: Number(e.target.value) }))} />
           </label>
-          <label>Posición Y
+          <label>
+            Posición Y
             <input type="range" min="-50" max="50" step="1" value={manualAdjust.offsetY}
               onChange={(e) => setManualAdjust((a) => ({ ...a, offsetY: Number(e.target.value) }))} />
           </label>
-          <label>Rotación
+          <label>
+            Rotación
             <input type="range" min="-45" max="45" step="1" value={manualAdjust.rotation}
               onChange={(e) => setManualAdjust((a) => ({ ...a, rotation: Number(e.target.value) }))} />
           </label>
-          <label>Transparencia
+          <label>
+            Transparencia
             <input type="range" min="0.2" max="1" step="0.05" value={manualAdjust.opacity}
               onChange={(e) => setManualAdjust((a) => ({ ...a, opacity: Number(e.target.value) }))} />
           </label>
