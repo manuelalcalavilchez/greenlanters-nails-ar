@@ -18,10 +18,18 @@ export default function NailDesigner() {
 
   return (
     <div className="page nail-designer">
+      <div className="atelier-brandbar">
+        <img src="/logo.png" alt="Las Greenlanters Nails" />
+        <div>
+          <strong>LAS GREENLANTERS NAILS</strong>
+          <span>NAIL ATELIER · VIRTUAL TRY-ON</span>
+        </div>
+      </div>
+
       <header className="nail-designer__intro">
-        <span className="eyebrow">REALIDAD AUMENTADA</span>
-        <h1>Elige tu diseño</h1>
-        <p>Selecciona un modelo y comprueba cómo queda en tus cinco uñas.</p>
+        <span className="eyebrow">VIRTUAL TRY-ON</span>
+        <h1>Encuentra tu diseño</h1>
+        <p>Elige un modelo y descubre cómo queda en tus cinco uñas.</p>
       </header>
 
       <div className="mobile-design-stage">

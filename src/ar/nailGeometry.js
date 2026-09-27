@@ -16,39 +16,45 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
   const pip = landmarks[idx.pip];
   const dip = landmarks[idx.dip];
   const tip = landmarks[idx.tip];
-  if (!pip || !dip || !tip) return null;
+  const mcp = landmarks[idx.mcp];
+  if (!pip || !dip || !tip || !mcp) return null;
 
   const pipPx = pxPoint(pip, canvasSize);
   const dipPx = pxPoint(dip, canvasSize);
   const tipPx = pxPoint(tip, canvasSize);
+  const mcpPx = pxPoint(mcp, canvasSize);
 
   const axisX = tipPx.x - dipPx.x;
   const axisY = tipPx.y - dipPx.y;
   const axisLen = Math.hypot(axisX, axisY) || 1;
   const ux = axisX / axisLen;
   const uy = axisY / axisLen;
-  const angleRad = Math.atan2(axisY, axisX);
 
-  const proximalLen = distancePx(pipPx, dipPx);
-  const widthFactor = fingerId === 'thumb' ? 0.85 : 0.72;
-  const fingerWidthPx = Math.max(proximalLen * widthFactor, 8);
+  // El grosor se estima en el plano local del dedo y se adapta a la longitud
+  // real del dedo. El pulgar tiene una proporción diferente.
+  const proximalLen = distancePx(mcpPx, pipPx);
+  const distalLen = distancePx(dipPx, tipPx);
+  const fingerWidthPx = Math.max(
+    fingerId === 'thumb'
+      ? proximalLen * 0.72
+      : Math.min(proximalLen * 0.88, distalLen * 0.82),
+    10
+  );
 
   const shape = getShapeById(shapeId);
   const desiredLength = fingerWidthPx * shape.aspect;
-  const nailLength = Math.max(
-    Math.min(desiredLength, axisLen * 1.02),
-    Math.min(18, axisLen * 0.92),
-  );
+  const nailLength = Math.min(desiredLength, distalLen * 1.02);
 
-  const baseOffset = Math.max(1.5, axisLen * 0.035);
+  // Pequeño margen desde la articulación DIP para que la uña no invada la piel.
+  const baseOffset = Math.max(2, distalLen * 0.055);
   const centerAlongAxis = baseOffset + nailLength / 2;
 
   return {
     x: dipPx.x + ux * centerAlongAxis,
     y: dipPx.y + uy * centerAlongAxis,
     width: fingerWidthPx,
-    height: nailLength,
-    angle: angleRad + Math.PI / 2,
+    height: Math.max(16, nailLength),
+    angle: Math.atan2(axisY, axisX) + Math.PI / 2,
     tipCurve: shape.tipCurve,
   };
 }
