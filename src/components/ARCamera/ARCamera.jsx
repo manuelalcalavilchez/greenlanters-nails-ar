@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { initHandTracker, detectForVideo, disposeHandTracker } from '../../ar/handTracker';
+import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness } from '../../ar/handTracker';
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
@@ -7,7 +7,8 @@ import { mapLandmarksToCover } from '../../ar/videoMapping';
 
 const DETECTION_INTERVAL_MS = 55;
 
-export default function ARCamera({ design }) {
+export default function ARCamera({ design, preferredHand }) {
+  const trackedHand = preferredHand || design?.hand || 'right';
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const viewportRef = useRef(null);
@@ -16,6 +17,7 @@ export default function ARCamera({ design }) {
   const smootherRef = useRef(createSmoother({ minCutoff: 1.2, beta: 0.4, dCutoff: 1.0 }));
   const facingModeRef = useRef('environment');
   const landmarksRef = useRef([]);
+  const handednessRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
 
@@ -35,6 +37,7 @@ export default function ARCamera({ design }) {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     landmarksRef.current = [];
+    handednessRef.current = [];
     lastDetectionAtRef.current = 0;
     lastVideoTimeRef.current = -1;
     smootherRef.current.reset();
@@ -139,6 +142,7 @@ export default function ARCamera({ design }) {
             const videoTimeMs = video.currentTime * 1000;
             const result = detectForVideo(video, videoTimeMs);
             landmarksRef.current = result.landmarks || [];
+            handednessRef.current = result.handedness || result.handednesses || [];
             lastVideoTimeRef.current = video.currentTime;
             lastDetectionAtRef.current = now;
             if (!landmarksRef.current.length) setStatus('no-hand');
@@ -150,7 +154,37 @@ export default function ARCamera({ design }) {
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        landmarksRef.current.forEach((landmarks) => {
+
+        // BUG PRINCIPAL DE ALINEACIÓN: con numHands=2, antes se iteraba con
+        // .forEach sobre TODAS las manos detectadas y se aplicaba el mismo
+        // diseño a cada una, pero el suavizador One-Euro (coordinateSmoothing.js)
+        // solo indexa su estado por nombre de dedo ('thumb', 'index'...), no
+        // por mano. Si aparecía una segunda mano (real o un falso positivo
+        // momentáneo de MediaPipe en el fondo), su posición sobrescribía cada
+        // frame el mismo estado del filtro que la mano correcta, haciendo que
+        // las uñas saltasen o quedasen desplazadas de la uña real.
+        // El diseño (design.hand) siempre está pensado para UNA sola mano, así
+        // que ahora seleccionamos, de entre las manos detectadas, la que
+        // corresponde a esa mano (usando la handedness que ya devuelve
+        // MediaPipe, corregida por espejo si la cámara es frontal) y solo esa
+        // se rastrea y suaviza. Si ninguna coincide (fallo de clasificación),
+        // usamos la primera mano detectada como fallback en vez de mezclar
+        // varias.
+        const hands = landmarksRef.current;
+        const handednessResults = handednessRef.current;
+        const isFrontCamera = facingModeRef.current === 'user';
+        let chosenIndex = hands.length ? 0 : -1;
+        for (let i = 0; i < hands.length; i += 1) {
+          const label = handednessResults[i]?.[0]?.categoryName;
+          const resolved = label ? resolveHandedness(label, isFrontCamera) : null;
+          if (resolved === trackedHand) {
+            chosenIndex = i;
+            break;
+          }
+        }
+        const landmarks = chosenIndex >= 0 ? hands[chosenIndex] : null;
+
+        if (landmarks) {
           // El vídeo usa object-fit: cover dentro de un viewport 3:4, por lo
           // que las coordenadas normalizadas de MediaPipe no coinciden con
           // el canvas original. Las mapeamos al área visible.
@@ -172,7 +206,14 @@ export default function ARCamera({ design }) {
             const adjusted = applyManualAdjust(smoothed, manualAdjustRef.current, canvas);
             drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
           }
-        });
+        } else {
+          // Sin mano rastreada este frame: limpiamos el estado del suavizador
+          // para que, cuando la mano reaparezca, no arrastre un salto de
+          // tiempo (dt) enorme desde el último dato válido.
+          for (const nail of design.nails) {
+            smootherRef.current.smooth(nail.finger, null, now);
+          }
+        }
       }
       rafRef.current = requestAnimationFrame(tick);
     }
