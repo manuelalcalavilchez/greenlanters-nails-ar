@@ -340,4 +340,4 @@ function drawDecorations(ctx, decorations = [], x, y, w, h) {
   }
 }
 
-export { paintPattern };`r`n
+export { paintPattern };

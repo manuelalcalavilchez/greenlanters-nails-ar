@@ -53,4 +53,4 @@ export default function NailDesigner() {
       </button>
     </div>
   );
-}`r`n
+}
