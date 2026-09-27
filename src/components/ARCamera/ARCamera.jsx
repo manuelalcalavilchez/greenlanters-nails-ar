@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { initHandTracker, detectForVideo, disposeHandTracker } from '../../ar/handTracker';
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
+import { mapLandmarksToCover } from '../../ar/videoMapping';
 import { drawNailDesign } from '../../ar/nailRenderer';
 
 const DETECTION_INTERVAL_MS = 55;
@@ -11,7 +12,7 @@ export default function ARCamera({ design }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
-  const smootherRef = useRef(createSmoother(0.28));
+  const smootherRef = useRef(createSmoother({ minCutoff: 1.2, beta: 0.4, dCutoff: 1.0 }));
   const facingModeRef = useRef('user');
   const landmarksRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
@@ -106,8 +107,9 @@ export default function ARCamera({ design }) {
       await video.play();
 
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 960;
-      canvas.height = video.videoHeight || 540;
+      const viewport = video.parentElement;
+      canvas.width = viewport?.clientWidth || 960;
+      canvas.height = viewport?.clientHeight || 720;
 
       setStatus('running');
       renderLoop();
@@ -138,13 +140,20 @@ export default function ARCamera({ design }) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         landmarksRef.current.forEach((landmarks) => {
-          const rectsRaw = estimateHandNailRects(landmarks, design, {
+          const mappedLandmarks = mapLandmarksToCover(
+            landmarks,
+            video.videoWidth,
+            video.videoHeight,
+            canvas.width,
+            canvas.height,
+          );
+          const rectsRaw = estimateHandNailRects(mappedLandmarks, design, {
             width: canvas.width,
             height: canvas.height
           });
 
           for (const nail of design.nails) {
-            const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger]);
+            const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger], now);
             if (!smoothed) continue;
             const adjusted = applyManualAdjust(smoothed, manualAdjustRef.current, canvas);
             drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
@@ -254,12 +263,24 @@ export default function ARCamera({ design }) {
 }
 
 function applyManualAdjust(rect, adjust, canvas) {
+  const scale = adjust.scale;
+  const contour = rect.contour
+    ? Object.fromEntries(
+        Object.entries(rect.contour).map(([key, value]) => (
+          key === 'cuticleCurve'
+            ? [key, value * scale]
+            : [key, { x: value.x * scale, y: value.y * scale }]
+        )),
+      )
+    : rect.contour;
+
   return {
     ...rect,
     x: rect.x + (adjust.offsetX / 100) * canvas.width,
     y: rect.y + (adjust.offsetY / 100) * canvas.height,
-    width: rect.width * adjust.scale,
-    height: rect.height * adjust.scale,
-    angle: rect.angle + (adjust.rotation * Math.PI) / 180
+    width: rect.width * scale,
+    height: rect.height * scale,
+    angle: rect.angle + (adjust.rotation * Math.PI) / 180,
+    contour,
   };
 }

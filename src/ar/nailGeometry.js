@@ -37,12 +37,19 @@ function getFingerWidth(landmarks, fingerId, canvasSize, proximalLen, distalLen)
     pinky: [p[15], p[19]],
   };
 
+  // La anchura de la placa ungueal se relaciona mejor con la falange distal
+  // que con la falange proximal. Los ratios siguen la calibración del demo
+  // de referencia, pero conservamos el contour adaptativo de este proyecto.
+  const distalWidthRatio = {
+    index: 0.78,
+    middle: 0.74,
+    ring: 0.72,
+    pinky: 0.80,
+  }[fingerId] || 0.75;
   const pair = distalNeighbors[fingerId];
   const neighborSpan = pair?.[0] && pair?.[1] ? distancePx(pair[0], pair[1]) : 0;
-  const neighborWidth = neighborSpan * (fingerId === 'pinky' ? 0.34 : 0.31);
-  const boneWidth = proximalLen * (fingerId === 'pinky' ? 0.72 : 0.78);
-
-  return Math.max(14, distalLen * 0.56, neighborWidth, boneWidth);
+  const neighborWidth = neighborSpan * (fingerId === 'pinky' ? 0.30 : 0.27);
+  return Math.max(14, distalLen * distalWidthRatio, neighborWidth);
 }
 
 function buildContour(shape, width, length, fingerId) {
@@ -99,7 +106,7 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
     16,
     Math.min(
       fingerWidthPx * shape.aspect,
-      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.94 : 0.88),
+      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.97 : 0.94),
     ),
   );
 
