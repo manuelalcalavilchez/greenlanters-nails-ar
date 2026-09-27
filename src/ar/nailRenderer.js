@@ -6,6 +6,16 @@ import { drawSvgNailDesign } from './svgDesignRenderer';
 // espacio local de cada uÃ±a para acompaÃ±ar el seguimiento de la mano.
 
 function applyNailPath(ctx, rect) {
+  if (Array.isArray(rect.contour) && rect.contour.length >= 5) {
+    ctx.beginPath();
+    ctx.moveTo(rect.contour[0].x, rect.contour[0].y);
+    for (let i = 1; i < rect.contour.length; i += 1) {
+      ctx.lineTo(rect.contour[i].x, rect.contour[i].y);
+    }
+    ctx.closePath();
+    return;
+  }
+
   const w = rect.width / 2;
   const h = rect.height / 2;
   const curve = h * rect.tipCurve;

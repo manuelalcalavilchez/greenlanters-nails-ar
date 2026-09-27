@@ -25,9 +25,18 @@ export function drawSvgNailDesign(ctx, rect, src, opacity = 1) {
   ctx.translate(rect.x, rect.y);
   ctx.rotate(rect.angle);
 
-  // Los SVG entregados usan viewBox 100x150 y dejan transparente la zona
-  // exterior a la silueta. Esto hace que la máscara real del diseño sea la
-  // forma SVG, no un rectángulo genérico.
+  // El contorno detectado por MediaPipe actúa como máscara final para que
+  // el diseño siga la uña real aunque el SVG tenga una silueta distinta.
+  if (Array.isArray(rect.contour) && rect.contour.length >= 5) {
+    ctx.beginPath();
+    ctx.moveTo(rect.contour[0].x, rect.contour[0].y);
+    for (let i = 1; i < rect.contour.length; i += 1) {
+      ctx.lineTo(rect.contour[i].x, rect.contour[i].y);
+    }
+    ctx.closePath();
+    ctx.clip();
+  }
+
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(
     image,
