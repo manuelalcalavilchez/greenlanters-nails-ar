@@ -1,3 +1,5 @@
+[Reading 341 lines from start (total: 341 lines, 0 remaining)]
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   initHandTracker,
@@ -339,3 +341,5 @@ function applyManualAdjust(rect, adjust, canvas) {
     angle: rect.angle + (adjust.rotation * Math.PI) / 180,
   };
 }
+
+[executed on device: torrearny (eef82570-0e14-4ff0-ac35-b4d890e31f4e)]

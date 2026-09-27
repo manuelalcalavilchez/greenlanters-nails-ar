@@ -1,3 +1,5 @@
+[Reading 88 lines from start (total: 88 lines, 0 remaining)]
+
 // Geometría estimada de la uña a partir de los 21 landmarks de MediaPipe.
 import { FINGER_LANDMARKS } from './handTracker';
 import { getShapeById } from '../data/nailShapes';
@@ -43,7 +45,7 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
   // Anchura del dedo estimada desde la falange proximal. Trabajamos siempre
   // en píxeles para que no haya distorsión cuando el canvas no sea cuadrado.
   const proximalLen = distancePx(pipPx, dipPx);
-  const widthFactor = fingerId === 'thumb' ? 0.75 : 0.55;
+  const widthFactor = fingerId === 'thumb' ? 0.85 : 0.72;
   const fingerWidthPx = Math.max(proximalLen * widthFactor, 8);
 
   const shape = getShapeById(shapeId);
@@ -86,3 +88,5 @@ export function estimateHandNailRects(landmarks, nailDesign, canvasSize) {
   }
   return result;
 }
+
+[executed on device: torrearny (eef82570-0e14-4ff0-ac35-b4d890e31f4e)]
