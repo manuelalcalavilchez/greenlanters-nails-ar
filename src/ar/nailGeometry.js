@@ -99,12 +99,13 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
     16,
     Math.min(
       fingerWidthPx * shape.aspect,
-      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.99 : 0.94),
+      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.94 : 0.88),
     ),
   );
 
-  // La base nace justo después del DIP; nunca se pinta sobre la articulación.
-  const baseOffset = Math.max(2, distalLen * 0.075);
+  // La base queda prácticamente pegada al DIP, dejando solo un margen
+  // pequeño para evitar que la máscara se meta en la articulación.
+  const baseOffset = Math.max(1.2, distalLen * 0.025);
   const centerAlongAxis = baseOffset + nailLength / 2;
   const center = {
     x: dipPx.x + axis.x * centerAlongAxis,
