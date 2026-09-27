@@ -48,17 +48,24 @@ export async function initHandTracker({
   if (handLandmarkerInstance) return handLandmarkerInstance;
 
   const vision = await FilesetResolver.forVisionTasks(wasmBaseUrl);
-  handLandmarkerInstance = await HandLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: modelUrl,
-      delegate: 'GPU',
-    },
+  const options = {
+    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
     runningMode,
     numHands,
-    minHandDetectionConfidence: 0.6,
-    minHandPresenceConfidence: 0.6,
-    minTrackingConfidence: 0.6,
-  });
+    minHandDetectionConfidence: 0.45,
+    minHandPresenceConfidence: 0.45,
+    minTrackingConfidence: 0.45,
+  };
+
+  try {
+    handLandmarkerInstance = await HandLandmarker.createFromOptions(vision, options);
+  } catch (gpuError) {
+    console.warn('MediaPipe GPU no disponible; usando CPU.', gpuError);
+    handLandmarkerInstance = await HandLandmarker.createFromOptions(vision, {
+      ...options,
+      baseOptions: { ...options.baseOptions, delegate: 'CPU' },
+    });
+  }
   return handLandmarkerInstance;
 }
 

@@ -15,6 +15,7 @@ export default function ARCamera({ design }) {
   const facingModeRef = useRef('environment');
   const landmarksRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
+  const lastVideoTimeRef = useRef(-1);
 
   const [status, setStatus] = useState('idle');
   const [facingMode, setFacingMode] = useState('environment');
@@ -33,6 +34,7 @@ export default function ARCamera({ design }) {
     rafRef.current = null;
     landmarksRef.current = [];
     lastDetectionAtRef.current = 0;
+    lastVideoTimeRef.current = -1;
     smootherRef.current.reset();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -129,12 +131,22 @@ export default function ARCamera({ design }) {
 
     function tick(now) {
       if (video.readyState >= 2) {
-        if (now - lastDetectionAtRef.current >= DETECTION_INTERVAL_MS) {
-          const result = detectForVideo(video, now);
-          landmarksRef.current = result.landmarks || [];
-          lastDetectionAtRef.current = now;
-          if (!landmarksRef.current.length) setStatus('no-hand');
-          else setStatus('running');
+        if (
+          now - lastDetectionAtRef.current >= DETECTION_INTERVAL_MS
+          && video.currentTime !== lastVideoTimeRef.current
+        ) {
+          try {
+            const videoTimeMs = video.currentTime * 1000;
+            const result = detectForVideo(video, videoTimeMs);
+            landmarksRef.current = result.landmarks || [];
+            lastVideoTimeRef.current = video.currentTime;
+            lastDetectionAtRef.current = now;
+            if (!landmarksRef.current.length) setStatus('no-hand');
+            else setStatus('running');
+          } catch (detectionError) {
+            console.error('Error detectando la mano:', detectionError);
+            lastDetectionAtRef.current = now;
+          }
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);

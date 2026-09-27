@@ -18,7 +18,7 @@ export default function VirtualTryOn() {
   return (
     <div className="page virtual-try-on">
       <button type="button" onClick={() => navigate(-1)}>← Volver al editor</button>
-      <h1>Prueba virtual</h1>
+      <h1>Previsualización</h1>
       <p className="privacy-note">
         El vídeo se procesa en tu dispositivo. No se envía a ningún servidor salvo que pulses "Capturar / Compartir".
       </p>
