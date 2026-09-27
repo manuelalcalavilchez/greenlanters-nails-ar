@@ -1,0 +1,84 @@
+{
+  "designs": [
+    {
+      "id": "01",
+      "label": "French naranja glitter",
+      "shape": "oval",
+      "source": "Imagen 1",
+      "variants": {
+        "base":   { "file": "designs/01a-naranja-glitter-base.svg",   "recolorable": ["baseColor"], "defaultColor": "#F5DFCB" },
+        "accent": { "file": "designs/01b-naranja-glitter-accent.svg", "recolorable": ["baseColor"], "defaultColor": "#F5DFCB" }
+      },
+      "accentFinger": "anular",
+      "notes": "La punta naranja glitter y la flor 3D están en la capa 'decoration' y no son recoloreables; solo baseColor (la parte nude) lo es."
+    },
+    {
+      "id": "02",
+      "label": "French blanco cuadrado + flor turquesa",
+      "shape": "square",
+      "source": "Imagen 2",
+      "variants": {
+        "base":   { "file": "designs/02a-french-blanco-base.svg",   "recolorable": ["baseColor"], "defaultColor": "#FBDCE9" },
+        "accent": { "file": "designs/02b-french-blanco-accent.svg", "recolorable": ["baseColor"], "defaultColor": "#FBDCE9" }
+      },
+      "accentFinger": "anular"
+    },
+    {
+      "id": "03",
+      "label": "Azul eléctrico + corazón 3D",
+      "shape": "square",
+      "source": "Imagen 3",
+      "variants": {
+        "base":   { "file": "designs/03a-azul-base.svg",           "recolorable": ["baseColor"], "defaultColor": "#1A1ACC" },
+        "accent": { "file": "designs/03b-azul-corazon-accent.svg", "recolorable": [], "defaultColor": null }
+      },
+      "accentFinger": "anular",
+      "notes": "La variante accent usa gradiente fijo (no recolorable) para el efecto degradado lila."
+    },
+    {
+      "id": "04",
+      "label": "Baby boomer ombré rosa-blanco",
+      "shape": "almond",
+      "source": "Imagen 4",
+      "variants": {
+        "base": { "file": "designs/04a-babyboomer.svg", "recolorable": [], "defaultColor": null }
+      },
+      "accentFinger": null,
+      "notes": "Diseño uniforme en las 5 uñas, sin uña de acento distinta."
+    },
+    {
+      "id": "05",
+      "label": "Verde lima glitter + hojas y perlas",
+      "shape": "stiletto",
+      "source": "Imagen 5",
+      "variants": {
+        "base":   { "file": "designs/05a-verde-lima-base.svg",   "recolorable": [], "defaultColor": null },
+        "accent": { "file": "designs/05b-verde-lima-accent.svg", "recolorable": ["baseColor"], "defaultColor": "#C0E890" }
+      },
+      "accentFinger": "anular"
+    },
+    {
+      "id": "06",
+      "label": "Nude/blanco línea lila + nube 3D y pluma",
+      "shape": "stiletto",
+      "source": "Imagen 6",
+      "variants": {
+        "base":   { "file": "designs/06a-nude-lila-base.svg",        "recolorable": ["baseColor"], "defaultColor": "#FFF8F5" },
+        "accent": { "file": "designs/06b-nude-nube-pluma-accent.svg","recolorable": ["baseColor"], "defaultColor": "#FFF8F5" }
+      },
+      "accentFinger": "anular"
+    },
+    {
+      "id": "07",
+      "label": "French fucsia + strass + moño 3D",
+      "shape": "square",
+      "source": "Imagen 7",
+      "variants": {
+        "base":   { "file": "designs/07a-fucsia-base.svg",         "recolorable": ["baseColor"], "defaultColor": "#FCE8F2" },
+        "accent": { "file": "designs/07b-fucsia-mono-accent.svg",  "recolorable": ["baseColor"], "defaultColor": "#FCE8F2" }
+      },
+      "accentFinger": "anular"
+    }
+  ],
+  "shapes": ["round", "oval", "almond", "square", "coffin", "stiletto"]
+}

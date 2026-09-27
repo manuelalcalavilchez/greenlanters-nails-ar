@@ -12,9 +12,23 @@ let handLandmarkerInstance = null;
  * Índices de landmarks relevantes por dedo (MediaPipe Hand Landmark model,
  * 21 puntos). MCP = nudillo base, PIP/DIP = articulaciones intermedias,
  * TIP = punta del dedo. La uña se estima entre DIP y TIP (ver nailGeometry.js).
+ *
+ * CORRECCIÓN (bug del pulgar desproporcionado): antes `pip` y `dip` del
+ * pulgar apuntaban los dos al mismo landmark (3, la articulación IP), por
+ * ser el pulgar el único dedo con una falange menos. Eso hacía que
+ * nailGeometry.js calculase dist(pip, dip) = 0 SIEMPRE para el pulgar, y su
+ * ancho de uña quedaba fijo en el mínimo de 8px sin importar el tamaño real
+ * de la mano ni la distancia a la cámara — cuando la mano se alejaba, los
+ * otros 4 dedos encogían correctamente y el pulgar se quedaba con ese
+ * tamaño fijo, viéndose desproporcionadamente grande.
+ * Ahora `pip` del pulgar apunta al MCP (2), así dist(pip, dip) mide el
+ * segmento MCP→IP (falange proximal), un tramo real que sí escala con la
+ * mano — igual que pip→dip mide una falange real en el resto de dedos.
+ * `dip` se mantiene en 3 y `tip` en 4, así que el centro de la uña
+ * (calculado en nailGeometry.js a partir de dip y tip) no cambia.
  */
 export const FINGER_LANDMARKS = {
-  thumb: { mcp: 2, pip: 3, dip: 3, tip: 4 }, // el pulgar solo tiene 2 falanges visibles tras el CMC
+  thumb: { mcp: 2, pip: 2, dip: 3, tip: 4 },
   index: { mcp: 5, pip: 6, dip: 7, tip: 8 },
   middle: { mcp: 9, pip: 10, dip: 11, tip: 12 },
   ring: { mcp: 13, pip: 14, dip: 15, tip: 16 },

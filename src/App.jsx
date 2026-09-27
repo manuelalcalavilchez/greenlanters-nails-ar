@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import NailDesigner from './pages/NailDesigner';
 import VirtualTryOn from './pages/VirtualTryOn';
 import SavedDesigns from './pages/SavedDesigns';
+import Catalog from './pages/Catalog';
 import './styles/global.css';
 
 export default function App() {
@@ -10,6 +11,7 @@ export default function App() {
       <header className="app-header">
         <span className="brand">Greenlanters Nails</span>
         <nav>
+          <Link to="/catalogo">Catálogo</Link>
           <Link to="/disenador">Diseñador</Link>
           <Link to="/mis-disenos">Mis diseños</Link>
         </nav>
@@ -20,6 +22,7 @@ export default function App() {
         <Route path="/disenador" element={<NailDesigner />} />
         <Route path="/probar-diseno" element={<VirtualTryOn />} />
         <Route path="/mis-disenos" element={<SavedDesigns />} />
+        <Route path="/catalogo" element={<Catalog />} />
       </Routes>
     </BrowserRouter>
   );

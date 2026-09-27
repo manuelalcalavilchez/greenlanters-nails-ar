@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 150" width="100" height="150"
+     data-design-id="02b" data-shape-id="square" data-source="Imagen 2">
+  <defs>
+    <clipPath id="clip02b"><path d="M18,140 L18,30 Q18,15 33,15 L67,15 Q82,15 82,30 L82,140 Q50,148 18,140 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip02b)">
+    <rect id="baseColor" x="0" y="0" width="100" height="150" fill="#FBDCE9"/>
+    <g id="decoration">
+      <rect x="10" y="10" width="80" height="34" fill="#FFFFFF"/>
+      <circle cx="50" cy="72" r="11" fill="#5DCFC8" opacity="0.9"/>
+      <circle cx="38" cy="64" r="10" fill="#4DC8C0" opacity="0.85"/>
+      <circle cx="37" cy="80" r="10" fill="#60D8D0" opacity="0.85"/>
+      <circle cx="50" cy="87" r="10.5" fill="#5DCFC8" opacity="0.85"/>
+      <circle cx="63" cy="79" r="10" fill="#4DC8C0" opacity="0.85"/>
+      <circle cx="62" cy="64" r="10" fill="#60D8D0" opacity="0.85"/>
+      <circle cx="50" cy="74" r="7" fill="#E8F8FF" stroke="#B0E0DC" stroke-width="0.8"/>
+      <circle cx="50" cy="74" r="4" fill="#C0E8FF" stroke="#88C8E0" stroke-width="0.5"/>
+      <circle cx="36" cy="95" r="2.2" fill="#E0E8FF" stroke="#A0B8E0" stroke-width="0.5"/>
+      <circle cx="62" cy="97" r="1.8" fill="#E0E8FF" stroke="#A0B8E0" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

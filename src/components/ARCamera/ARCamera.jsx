@@ -26,8 +26,16 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
 
   const [status, setStatus] = useState('idle'); // idle | loading | running | no-hand | error
   const [facingMode, setFacingMode] = useState('user'); // 'user' = frontal, 'environment' = trasera
-  const [manualAdjust, setManualAdjust] = useState({ scale: 1, offsetX: 0, offsetY: 0, rotation: 0, opacity: 1 });
+  // Empezamos deliberadamente más pequeño para que la primera prueba no
+  // tape la uña natural. La usuaria puede aumentarlo con el control.
+  const [manualAdjust, setManualAdjust] = useState({ scale: 0.72, offsetX: 0, offsetY: 0, rotation: 0, opacity: 1 });
+  const manualAdjustRef = useRef(manualAdjust);
+  const restartAfterFacingChangeRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    manualAdjustRef.current = manualAdjust;
+  }, [manualAdjust]);
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -101,8 +109,9 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
             for (const nail of design.nails) {
               const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger]);
               if (!smoothed) continue;
-              const adjusted = applyManualAdjust(smoothed, manualAdjust, canvas);
-              drawNailDesign(ctx, adjusted, nail, manualAdjust.opacity);
+              const currentAdjust = manualAdjustRef.current;
+              const adjusted = applyManualAdjust(smoothed, currentAdjust, canvas);
+              drawNailDesign(ctx, adjusted, nail, currentAdjust.opacity);
             }
           });
         }
@@ -118,9 +127,16 @@ export default function ARCamera({ design, preferredHand = 'right' }) {
   }, []);
 
   function toggleFacing() {
+    restartAfterFacingChangeRef.current = true;
     stopCamera();
     setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
   }
+
+  useEffect(() => {
+    if (!restartAfterFacingChangeRef.current) return;
+    restartAfterFacingChangeRef.current = false;
+    startCamera();
+  }, [facingMode, startCamera]);
 
   function captureScreenshot() {
     const canvas = canvasRef.current;

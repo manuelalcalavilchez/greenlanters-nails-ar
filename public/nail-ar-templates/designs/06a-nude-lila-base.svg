@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 150" width="100" height="150"
+     data-design-id="06a" data-shape-id="stiletto" data-source="Imagen 6">
+  <defs>
+    <clipPath id="clip06a"><path d="M20,140 Q14,70 50,8 Q86,70 80,140 Q50,150 20,140 Z"/></clipPath>
+    <linearGradient id="nude06" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF8F5"/><stop offset="100%" stop-color="#F5EDE8"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#clip06a)">
+    <rect id="baseColor" x="0" y="0" width="100" height="150" fill="url(#nude06)"/>
+    <g id="decoration">
+      <path d="M26,100 Q50,92 74,100" stroke="#C0A0E0" stroke-width="2.2" fill="none"/>
+    </g>
+  </g>
+</svg>

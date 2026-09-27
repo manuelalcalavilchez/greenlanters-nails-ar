@@ -28,6 +28,9 @@ export default function SavedDesigns() {
           <div key={d.id} className="saved-design-card">
             <DesignPreview design={d} />
             <div className="saved-design-card__actions">
+              <button type="button" onClick={() => navigate('/disenador', { state: { design: d } })}>
+                Editar
+              </button>
               <button type="button" onClick={() => navigate('/probar-diseno', { state: { design: d } })}>
                 Probar
               </button>
