@@ -14,45 +14,58 @@ function normalize(x, y) {
   return { x: x / len, y: y / len };
 }
 
+const SHAPE_ANCHORS = {
+  round: { base: 0.70, tip: 0.72, tipWidth: 0.62, shoulder: 0.92 },
+  oval: { base: 0.62, tip: 0.68, tipWidth: 0.46, shoulder: 0.82 },
+  almond: { base: 0.64, tip: 0.08, tipWidth: 0.04, shoulder: 0.78 },
+  square: { base: 0.64, tip: 0.15, tipWidth: 0.48, shoulder: 0.94 },
+  coffin: { base: 0.50, tip: 0.18, tipWidth: 0.66, shoulder: 0.86 },
+  stiletto: { base: 0.64, tip: 0.08, tipWidth: 0.04, shoulder: 0.72 },
+};
+
 function getFingerWidth(landmarks, fingerId, canvasSize, proximalLen, distalLen) {
   const p = landmarks.map((point) => pxPoint(point, canvasSize));
-  const idx = FINGER_LANDMARKS[fingerId];
-  if (!idx) return Math.max(10, proximalLen * 0.6);
 
   if (fingerId === 'thumb') {
-    return Math.max(18, proximalLen * 0.68, distalLen * 0.92);
+    return Math.max(17, distalLen * 0.88, proximalLen * 0.64);
   }
 
-  const neighbors = {
-    index: [p[6], p[10]],
-    middle: [p[6], p[14]],
-    ring: [p[10], p[18]],
-    pinky: [p[14], p[18]],
+  const distalNeighbors = {
+    index: [p[7], p[11]],
+    middle: [p[7], p[15]],
+    ring: [p[11], p[19]],
+    pinky: [p[15], p[19]],
   };
-  const pair = neighbors[fingerId];
-  const neighborWidth = pair?.[0] && pair?.[1] ? distancePx(pair[0], pair[1]) * 0.47 : 0;
-  const boneWidth = proximalLen * (fingerId === 'pinky' ? 0.76 : 0.82);
-  return Math.max(14, neighborWidth * 0.9, boneWidth, distalLen * 0.58);
+
+  const pair = distalNeighbors[fingerId];
+  const neighborSpan = pair?.[0] && pair?.[1] ? distancePx(pair[0], pair[1]) : 0;
+  const neighborWidth = neighborSpan * (fingerId === 'pinky' ? 0.34 : 0.31);
+  const boneWidth = proximalLen * (fingerId === 'pinky' ? 0.72 : 0.78);
+
+  return Math.max(14, distalLen * 0.56, neighborWidth, boneWidth);
 }
 
 function buildContour(shape, width, length, fingerId) {
+  const anchor = SHAPE_ANCHORS[shape.id] || SHAPE_ANCHORS.round;
   const half = width / 2;
-  const baseInset = half * (fingerId === 'thumb' ? 0.04 : 0.08);
-  const tip = shape.tipCurve;
-  const shoulder = shape.id === 'stiletto' ? 0.58 : shape.id === 'coffin' ? 0.96 : 0.82;
-  const tipHalf = half * (shape.id === 'square' ? 0.98 : shape.id === 'coffin' ? 0.88 : tip < 0.25 ? 0.72 : 0.34);
+  const baseHalf = half * anchor.base;
+  const shoulderHalf = half * anchor.shoulder;
+  const tipHalf = half * anchor.tipWidth;
+  const cuticleCurve = length * (fingerId === 'thumb' ? 0.08 : 0.065);
 
-  return [
-    { x: -half + baseInset, y: length * 0.5 },
-    { x: -half * shoulder, y: length * 0.18 },
-    { x: -tipHalf, y: -length * 0.30 },
-    { x: -tipHalf * 0.72, y: -length * 0.43 },
-    { x: 0, y: -length * 0.5 },
-    { x: tipHalf * 0.72, y: -length * 0.43 },
-    { x: tipHalf, y: -length * 0.30 },
-    { x: half * shoulder, y: length * 0.18 },
-    { x: half - baseInset, y: length * 0.5 },
-  ];
+  // Coordenadas locales: +Y apunta hacia la cutícula y -Y hacia la punta.
+  // La base queda ligeramente más ancha y curvada, como una uña real.
+  return {
+    baseLeft: { x: -baseHalf, y: length * 0.5 },
+    baseRight: { x: baseHalf, y: length * 0.5 },
+    leftControl1: { x: -shoulderHalf, y: length * 0.39 },
+    leftControl2: { x: -shoulderHalf, y: -length * 0.14 },
+    rightControl1: { x: shoulderHalf, y: -length * 0.14 },
+    rightControl2: { x: shoulderHalf, y: length * 0.39 },
+    tipLeft: { x: -tipHalf, y: -length * (0.5 - anchor.tip * 0.42) },
+    tipRight: { x: tipHalf, y: -length * (0.5 - anchor.tip * 0.42) },
+    cuticleCurve,
+  };
 }
 
 export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
@@ -69,8 +82,8 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
   const dipPx = pxPoint(dip, canvasSize);
   const tipPx = pxPoint(tip, canvasSize);
   const mcpPx = pxPoint(mcp, canvasSize);
-  const axis = normalize(tipPx.x - dipPx.x, tipPx.y - dipPx.y);
 
+  const axis = normalize(tipPx.x - dipPx.x, tipPx.y - dipPx.y);
   const proximalLen = distancePx(mcpPx, pipPx);
   const distalLen = distancePx(dipPx, tipPx);
   const fingerWidthPx = getFingerWidth(
@@ -83,17 +96,21 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
 
   const shape = getShapeById(shapeId);
   const nailLength = Math.max(
-    18,
-    Math.min(fingerWidthPx * shape.aspect, distalLen * 1.18),
+    16,
+    Math.min(
+      fingerWidthPx * shape.aspect,
+      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.99 : 0.94),
+    ),
   );
-  const baseOffset = Math.max(1.5, distalLen * 0.06);
+
+  // La base nace justo después del DIP; nunca se pinta sobre la articulación.
+  const baseOffset = Math.max(2, distalLen * 0.075);
   const centerAlongAxis = baseOffset + nailLength / 2;
   const center = {
     x: dipPx.x + axis.x * centerAlongAxis,
     y: dipPx.y + axis.y * centerAlongAxis,
   };
 
-  const contour = buildContour(shape, fingerWidthPx, nailLength, fingerId);
   return {
     x: center.x,
     y: center.y,
@@ -101,7 +118,7 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
     height: nailLength,
     angle: Math.atan2(axis.y, axis.x) + Math.PI / 2,
     tipCurve: shape.tipCurve,
-    contour,
+    contour: buildContour(shape, fingerWidthPx, nailLength, fingerId),
   };
 }
 

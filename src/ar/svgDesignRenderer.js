@@ -27,12 +27,16 @@ export function drawSvgNailDesign(ctx, rect, src, opacity = 1) {
 
   // El contorno detectado por MediaPipe actúa como máscara final para que
   // el diseño siga la uña real aunque el SVG tenga una silueta distinta.
-  if (Array.isArray(rect.contour) && rect.contour.length >= 5) {
+  if (rect.contour?.baseLeft) {
+    const c = rect.contour;
     ctx.beginPath();
-    ctx.moveTo(rect.contour[0].x, rect.contour[0].y);
-    for (let i = 1; i < rect.contour.length; i += 1) {
-      ctx.lineTo(rect.contour[i].x, rect.contour[i].y);
-    }
+    ctx.moveTo(c.baseLeft.x, c.baseLeft.y);
+    ctx.quadraticCurveTo(-rect.width * 0.12, c.baseLeft.y - c.cuticleCurve, 0, c.baseLeft.y - c.cuticleCurve * 1.15);
+    ctx.quadraticCurveTo(rect.width * 0.12, c.baseRight.y - c.cuticleCurve, c.baseRight.x, c.baseRight.y);
+    ctx.bezierCurveTo(c.rightControl1.x, c.rightControl1.y, c.rightControl2.x, c.rightControl2.y, c.tipRight.x, c.tipRight.y);
+    ctx.quadraticCurveTo(rect.width * 0.08, c.tipRight.y - rect.height * 0.035, 0, c.tipRight.y);
+    ctx.quadraticCurveTo(-rect.width * 0.08, c.tipLeft.y - rect.height * 0.035, c.tipLeft.x, c.tipLeft.y);
+    ctx.bezierCurveTo(c.leftControl2.x, c.leftControl2.y, c.leftControl1.x, c.leftControl1.y, c.baseLeft.x, c.baseLeft.y);
     ctx.closePath();
     ctx.clip();
   }
