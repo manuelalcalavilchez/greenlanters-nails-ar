@@ -1,12 +1,5 @@
-[Reading 341 lines from start (total: 341 lines, 0 remaining)]
-
 import { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  initHandTracker,
-  detectForVideo,
-  disposeHandTracker,
-  resolveHandedness,
-} from '../../ar/handTracker';
+import { initHandTracker, detectForVideo, disposeHandTracker } from '../../ar/handTracker';
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
@@ -15,36 +8,25 @@ export default function ARCamera({ design }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const smootherRef = useRef(createSmoother(0.35));
   const rafRef = useRef(null);
+  const smootherRef = useRef(createSmoother(0.35));
   const facingModeRef = useRef('user');
 
   const [status, setStatus] = useState('idle');
   const [facingMode, setFacingMode] = useState('user');
   const [cameraName, setCameraName] = useState('Cámara frontal');
   const [manualAdjust, setManualAdjust] = useState({
-    scale: 0.72,
-    offsetX: 0,
-    offsetY: 0,
-    rotation: 0,
-    opacity: 1,
+    scale: 1.05, offsetX: 0, offsetY: 0, rotation: 0, opacity: 1
   });
   const manualAdjustRef = useRef(manualAdjust);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    manualAdjustRef.current = manualAdjust;
-  }, [manualAdjust]);
-
-  useEffect(() => {
-    facingModeRef.current = facingMode;
-  }, [facingMode]);
+  useEffect(() => { manualAdjustRef.current = manualAdjust; }, [manualAdjust]);
+  useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
 
   const stopCamera = useCallback((disposeTracker = true) => {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -66,73 +48,52 @@ export default function ARCamera({ design }) {
       await initHandTracker();
 
       const devices = await getVideoDevices();
-      const currentLabel = requestedMode === 'user' ? 'Cámara frontal' : 'Cámara trasera';
-
+      const labelled = devices.filter((device) => device.label);
       let constraints = {
         video: {
           facingMode: { ideal: requestedMode },
           width: { ideal: 1280 },
-          height: { ideal: 720 },
+          height: { ideal: 720 }
         },
-        audio: false,
+        audio: false
       };
 
-      if (devices.length > 1) {
-        const labelled = devices.filter((device) => device.label);
-        const currentStreamLabel = streamRef.current?.getVideoTracks?.()[0]?.label || '';
-        const candidates = labelled.filter((device) => device.label !== currentStreamLabel);
-
-        if (requestedMode === 'environment') {
-          const rear = candidates.find((device) => /back|rear|environment|trasera|posterior/i.test(device.label));
-          if (rear) {
-            constraints.video = {
-              deviceId: { exact: rear.deviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            };
-          }
-        } else {
-          const front = candidates.find((device) => /front|user|facetime|frontal|delantera/i.test(device.label));
-          if (front) {
-            constraints.video = {
-              deviceId: { exact: front.deviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            };
-          }
+      if (labelled.length > 1) {
+        const regex = requestedMode === 'environment'
+          ? /back|rear|environment|trasera|posterior/i
+          : /front|user|facetime|frontal|delantera/i;
+        const matching = labelled.find((device) => regex.test(device.label));
+        if (matching) {
+          constraints.video = {
+            deviceId: { exact: matching.deviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          };
         }
       }
 
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (firstError) {
+      } catch {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: requestedMode },
             width: { ideal: 1280 },
-            height: { ideal: 720 },
+            height: { ideal: 720 }
           },
-          audio: false,
+          audio: false
         });
       }
 
       streamRef.current = stream;
       const track = stream.getVideoTracks()[0];
       const settings = track?.getSettings?.() || {};
+      const actualMode = settings.facingMode || requestedMode;
 
-      if (settings.facingMode) {
-        facingModeRef.current = settings.facingMode;
-        setFacingMode(settings.facingMode);
-      }
-
-      setCameraName(
-        settings.facingMode === 'environment'
-          ? 'Cámara trasera'
-          : requestedMode === 'environment'
-            ? 'Cámara trasera'
-            : currentLabel
-      );
+      facingModeRef.current = actualMode;
+      setFacingMode(actualMode);
+      setCameraName(actualMode === 'environment' ? 'Cámara trasera' : 'Cámara frontal');
 
       const video = videoRef.current;
       video.srcObject = stream;
@@ -159,7 +120,6 @@ export default function ARCamera({ design }) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-
     const ctx = canvas.getContext('2d');
 
     function tick() {
@@ -167,51 +127,39 @@ export default function ARCamera({ design }) {
         const result = detectForVideo(video, performance.now());
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        if (!result.landmarks || result.landmarks.length === 0) {
+        if (!result.landmarks?.length) {
           setStatus('no-hand');
         } else {
           setStatus('running');
-          result.landmarks.forEach((landmarks, i) => {
-            const handednessLabel = result.handedness?.[i]?.[0]?.categoryName;
-            const hand = resolveHandedness(
-              handednessLabel,
-              facingModeRef.current === 'user'
-            );
-
-            if (design.hand && design.hand !== hand) return;
-
+          result.landmarks.forEach((landmarks) => {
+            // No filtramos por mano en este MVP: la plantilla debe funcionar
+            // tanto con la frontal como con la trasera.
             const rectsRaw = estimateHandNailRects(landmarks, design, {
               width: canvas.width,
-              height: canvas.height,
+              height: canvas.height
             });
 
             for (const nail of design.nails) {
               const smoothed = smootherRef.current.smooth(
-                nail.finger,
-                rectsRaw[nail.finger]
+                nail.finger, rectsRaw[nail.finger]
               );
               if (!smoothed) continue;
-
               const adjusted = applyManualAdjust(
-                smoothed,
-                manualAdjustRef.current,
-                canvas
+                smoothed, manualAdjustRef.current, canvas
               );
-              drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
+              drawNailDesign(
+                ctx, adjusted, nail, manualAdjustRef.current.opacity
+              );
             }
           });
         }
       }
-
       rafRef.current = requestAnimationFrame(tick);
     }
-
     tick();
   }
 
-  useEffect(() => {
-    return () => stopCamera(true);
-  }, [stopCamera]);
+  useEffect(() => () => stopCamera(true), [stopCamera]);
 
   async function toggleFacing() {
     const nextMode = facingModeRef.current === 'user' ? 'environment' : 'user';
@@ -240,90 +188,78 @@ export default function ARCamera({ design }) {
     link.click();
 
     if (navigator.share) {
-      fetch(dataUrl)
-        .then((response) => response.blob())
-        .then((blob) => {
-          const file = new File([blob], 'diseno-unas.png', { type: 'image/png' });
-          navigator.share({
-            files: [file],
-            title: 'Mi diseño de uñas',
-          }).catch(() => {});
-        });
+      fetch(dataUrl).then((response) => response.blob()).then((blob) => {
+        const file = new File([blob], 'diseno-unas.png', { type: 'image/png' });
+        navigator.share({ files: [file], title: 'Mi diseño de uñas' }).catch(() => {});
+      });
     }
   }
 
   return (
     <div className="ar-camera">
       <div className="ar-camera__viewport">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{ display: status === 'idle' ? 'none' : 'block' }}
-        />
+        <video ref={videoRef} playsInline muted
+          style={{ display: status === 'idle' ? 'none' : 'block' }} />
         <canvas ref={canvasRef} className="ar-overlay" />
-
-        {status === 'no-hand' && (
-          <div className="ar-hint">Acerca la mano a la cámara.</div>
-        )}
-
-        {status === 'loading' && (
-          <div className="ar-hint">Cambiando cámara…</div>
-        )}
-
-        {status === 'error' && (
-          <div className="ar-hint ar-hint--error">{errorMsg}</div>
-        )}
+        {status === 'no-hand' && <div className="ar-hint">Acerca la mano a la cámara.</div>}
+        {status === 'loading' && <div className="ar-hint">Cambiando cámara…</div>}
+        {status === 'error' && <div className="ar-hint ar-hint--error">{errorMsg}</div>}
       </div>
 
       {status === 'idle' && (
-        <button type="button" className="primary ar-start-button" onClick={() => startCamera('user')}>
+        <button type="button" className="primary ar-start-button"
+          onClick={() => startCamera('user')}>
           Activar cámara
         </button>
       )}
 
       {status !== 'idle' && (
         <div className="ar-controls">
-          <button
-            type="button"
-            className="primary ar-camera-switch"
-            onClick={toggleFacing}
-            disabled={status === 'loading'}
-          >
+          <button type="button" className="primary ar-camera-switch"
+            onClick={toggleFacing} disabled={status === 'loading'}>
             {status === 'loading'
               ? 'Cambiando…'
               : 'Cambiar a ' + (facingMode === 'user' ? 'trasera' : 'frontal')}
           </button>
           <span className="ar-camera-current">{cameraName}</span>
-
           <button type="button" onClick={handleCaptureAndShare}>
             Capturar / Compartir
           </button>
 
-          <label>
-            Tamaño
-            <input type="range" min="0.5" max="1.8" step="0.05" value={manualAdjust.scale}
-              onChange={(e) => setManualAdjust((a) => ({ ...a, scale: Number(e.target.value) }))} />
+          <label>Tamaño
+            <input type="range" min="0.5" max="1.8" step="0.05"
+              value={manualAdjust.scale}
+              onChange={(e) => setManualAdjust((a) => ({
+                ...a, scale: Number(e.target.value)
+              }))} />
           </label>
-          <label>
-            Posición X
-            <input type="range" min="-50" max="50" step="1" value={manualAdjust.offsetX}
-              onChange={(e) => setManualAdjust((a) => ({ ...a, offsetX: Number(e.target.value) }))} />
+          <label>Posición X
+            <input type="range" min="-50" max="50" step="1"
+              value={manualAdjust.offsetX}
+              onChange={(e) => setManualAdjust((a) => ({
+                ...a, offsetX: Number(e.target.value)
+              }))} />
           </label>
-          <label>
-            Posición Y
-            <input type="range" min="-50" max="50" step="1" value={manualAdjust.offsetY}
-              onChange={(e) => setManualAdjust((a) => ({ ...a, offsetY: Number(e.target.value) }))} />
+          <label>Posición Y
+            <input type="range" min="-50" max="50" step="1"
+              value={manualAdjust.offsetY}
+              onChange={(e) => setManualAdjust((a) => ({
+                ...a, offsetY: Number(e.target.value)
+              }))} />
           </label>
-          <label>
-            Rotación
-            <input type="range" min="-45" max="45" step="1" value={manualAdjust.rotation}
-              onChange={(e) => setManualAdjust((a) => ({ ...a, rotation: Number(e.target.value) }))} />
+          <label>Rotación
+            <input type="range" min="-45" max="45" step="1"
+              value={manualAdjust.rotation}
+              onChange={(e) => setManualAdjust((a) => ({
+                ...a, rotation: Number(e.target.value)
+              }))} />
           </label>
-          <label>
-            Transparencia
-            <input type="range" min="0.2" max="1" step="0.05" value={manualAdjust.opacity}
-              onChange={(e) => setManualAdjust((a) => ({ ...a, opacity: Number(e.target.value) }))} />
+          <label>Transparencia
+            <input type="range" min="0.2" max="1" step="0.05"
+              value={manualAdjust.opacity}
+              onChange={(e) => setManualAdjust((a) => ({
+                ...a, opacity: Number(e.target.value)
+              }))} />
           </label>
         </div>
       )}
@@ -338,8 +274,6 @@ function applyManualAdjust(rect, adjust, canvas) {
     y: rect.y + (adjust.offsetY / 100) * canvas.height,
     width: rect.width * adjust.scale,
     height: rect.height * adjust.scale,
-    angle: rect.angle + (adjust.rotation * Math.PI) / 180,
+    angle: rect.angle + (adjust.rotation * Math.PI) / 180
   };
 }
-
-[executed on device: torrearny (eef82570-0e14-4ff0-ac35-b4d890e31f4e)]
