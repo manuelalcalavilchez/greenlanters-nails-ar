@@ -211,4 +211,4 @@ export default function NailEditor({ initialDesign, loadToken, onDesignChange })
       </div>
     </div>
   );
-}`r`n
+}
