@@ -3,12 +3,14 @@ import { initHandTracker, detectForVideo, disposeHandTracker } from '../../ar/ha
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
+import { mapLandmarksToCover } from '../../ar/videoMapping';
 
 const DETECTION_INTERVAL_MS = 55;
 
 export default function ARCamera({ design }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const viewportRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef = useRef(null);
   const smootherRef = useRef(createSmoother({ minCutoff: 1.2, beta: 0.4, dCutoff: 1.0 }));
@@ -108,9 +110,7 @@ export default function ARCamera({ design }) {
       video.srcObject = stream;
       await video.play();
 
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 960;
-      canvas.height = video.videoHeight || 540;
+      resizeOverlayCanvas();
 
       setStatus('running');
       renderLoop();
@@ -151,7 +151,17 @@ export default function ARCamera({ design }) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         landmarksRef.current.forEach((landmarks) => {
-          const rectsRaw = estimateHandNailRects(landmarks, design, {
+          // El vídeo usa object-fit: cover dentro de un viewport 3:4, por lo
+          // que las coordenadas normalizadas de MediaPipe no coinciden con
+          // el canvas original. Las mapeamos al área visible.
+          const mappedLandmarks = mapLandmarksToCover(
+            landmarks,
+            video.videoWidth,
+            video.videoHeight,
+            canvas.width,
+            canvas.height,
+          );
+          const rectsRaw = estimateHandNailRects(mappedLandmarks, design, {
             width: canvas.width,
             height: canvas.height
           });
@@ -168,6 +178,22 @@ export default function ARCamera({ design }) {
     }
     tick(performance.now());
   }
+
+  function resizeOverlayCanvas() {
+    const canvas = canvasRef.current;
+    const viewport = viewportRef.current;
+    if (!canvas || !viewport) return;
+    const rect = viewport.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  }
+
+  useEffect(() => {
+    const handleResize = () => resizeOverlayCanvas();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => () => stopCamera(true), [stopCamera]);
 
@@ -206,7 +232,7 @@ export default function ARCamera({ design }) {
 
   return (
     <div className="ar-camera">
-      <div className="ar-camera__viewport">
+      <div ref={viewportRef} className="ar-camera__viewport">
         <video ref={videoRef} playsInline muted style={{ display: status === 'idle' ? 'none' : 'block' }} />
         <canvas ref={canvasRef} className="ar-overlay" />
         {status === 'no-hand' && <div className="ar-hint">Acerca la mano a la cámara.</div>}
