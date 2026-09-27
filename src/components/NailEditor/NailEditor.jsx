@@ -5,7 +5,7 @@ import NailPalette from '../NailPalette/NailPalette';
 import { FINGERS } from '../../data/nailShapes';
 import { createDefaultDesign } from '../../data/nailPatterns';
 
-export default function NailEditor({ initialDesign, loadToken, onDesignChange }) {
+export default function NailEditor({ initialDesign, loadToken, onDesignChange, compact = false }) {
   const [design, setDesign] = useState(initialDesign || createDefaultDesign());
   const [selectedFinger, setSelectedFinger] = useState('thumb');
   const isFirstRender = useRef(true);
@@ -33,39 +33,40 @@ export default function NailEditor({ initialDesign, loadToken, onDesignChange })
   }
 
   return (
-    <section className="nail-editor">
-      <div className="nail-editor__hands">
-        {FINGERS.map((finger) => {
-          const nail = design.nails.find((item) => item.finger === finger.id);
-          return (
-            <button
-              key={finger.id}
-              type="button"
-              className={`finger-slot ${selectedFinger === finger.id ? 'active' : ''}`}
-              onClick={() => setSelectedFinger(finger.id)}
-            >
-              <NailCanvas
-                nail={nail}
-                selected={selectedFinger === finger.id}
-                onClick={() => setSelectedFinger(finger.id)}
-              />
-              <span>{finger.label}</span>
-            </button>
-          );
-        })}
-      </div>
+    <section className={`nail-editor ${compact ? 'nail-editor--compact' : ''}`}>
+      {!compact && (
+        <div className="nail-editor__hands">
+          {FINGERS.map((finger) => {
+            const nail = design.nails.find((item) => item.finger === finger.id);
+            return (
+              <button key={finger.id} type="button"
+                className={`finger-slot ${selectedFinger === finger.id ? 'active' : ''}`}
+                onClick={() => setSelectedFinger(finger.id)}>
+                <NailCanvas nail={nail} selected={selectedFinger === finger.id}
+                  onClick={() => setSelectedFinger(finger.id)} />
+                <span>{finger.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="nail-editor__panel">
-        <h2>Personaliza la plantilla</h2>
-        <p className="nail-editor__hint">
-          Selecciona una uña para cambiar su forma o color.
-        </p>
+        <h2>Ajuste opcional</h2>
+        <p className="nail-editor__hint">Puedes cambiar la forma y el color de la uña seleccionada.</p>
 
-        <NailShapeSelector
-          value={selectedNail.shape}
-          onChange={(shape) => updateSelectedNail({ shape })}
-        />
+        <div className="nail-editor__finger-picker">
+          {FINGERS.map((finger) => (
+            <button key={finger.id} type="button"
+              className={selectedFinger === finger.id ? 'primary' : ''}
+              onClick={() => setSelectedFinger(finger.id)}>
+              {finger.label}
+            </button>
+          ))}
+        </div>
 
+        <NailShapeSelector value={selectedNail.shape}
+          onChange={(shape) => updateSelectedNail({ shape })} />
         <NailPalette nail={selectedNail} onChange={updateSelectedNail} />
       </div>
     </section>

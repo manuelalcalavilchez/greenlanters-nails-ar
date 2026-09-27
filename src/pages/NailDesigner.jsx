@@ -3,16 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import NailEditor from '../components/NailEditor/NailEditor';
 import { createDefaultDesign } from '../data/nailPatterns';
 import ARTemplateGallery from '../components/ARTemplateGallery/ARTemplateGallery';
+import DesignPreviewStrip from '../components/DesignPreviewStrip/DesignPreviewStrip';
 
 export default function NailDesigner() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [design, setDesign] = useState(
-    () => location.state?.design || createDefaultDesign()
-  );
-  const [loadToken, setLoadToken] = useState(
-    () => (location.state?.design ? 1 : 0)
-  );
+  const [design, setDesign] = useState(() => location.state?.design || createDefaultDesign());
+  const [loadToken, setLoadToken] = useState(() => (location.state?.design ? 1 : 0));
 
   function loadDesign(nextDesign) {
     setDesign(nextDesign);
@@ -23,25 +20,24 @@ export default function NailDesigner() {
     <div className="page nail-designer">
       <header className="nail-designer__intro">
         <span className="eyebrow">REALIDAD AUMENTADA</span>
-        <h1>Diseña tus uñas</h1>
-        <p>Elige una plantilla y pruébala directamente en tu mano.</p>
+        <h1>Elige tu diseño</h1>
+        <p>Selecciona un modelo y comprueba cómo queda en tus cinco uñas.</p>
       </header>
 
-      <ARTemplateGallery onLoad={loadDesign} />
+      <div className="mobile-design-stage">
+        <ARTemplateGallery onLoad={loadDesign} selected={design.arTemplate} />
+        <DesignPreviewStrip
+          design={design}
+          onTryOn={() => navigate('/probar-diseno', { state: { design } })}
+        />
+      </div>
 
       <NailEditor
         initialDesign={design}
         loadToken={loadToken}
         onDesignChange={setDesign}
+        compact
       />
-
-      <button
-        type="button"
-        className="primary cta-try-on"
-        onClick={() => navigate('/probar-diseno', { state: { design } })}
-      >
-        Probar en mi mano →
-      </button>
     </div>
   );
 }

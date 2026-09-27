@@ -261,3 +261,41 @@ button:disabled { opacity: 0.4; }
   .shape-btn { min-width: 58px; padding: 7px 5px; font-size: .72rem; }
   .shape-btn__svg { height: 42px; width: 30px; }
 }
+.mobile-design-stage { margin-top: 10px; }
+.ar-template-gallery { margin: 10px 0 8px; padding: 12px; }
+.ar-template-gallery__rail { display:flex; gap:10px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; padding:2px 2px 8px; scrollbar-width:none; }
+.ar-template-gallery__rail::-webkit-scrollbar { display:none; }
+.ar-template-card { flex:0 0 158px; scroll-snap-align:start; }
+.ar-template-card.is-selected { border-color:var(--primary); box-shadow:0 0 0 2px #f4c7d7; }
+.ar-template-card__select { display:block; width:100%; min-height:0; padding:0; border:0; background:transparent; text-align:left; }
+.ar-template-card__select strong,.ar-template-card__select small { display:block; padding:0 8px; }
+.ar-template-card__select strong { margin-top:7px; }
+.ar-template-card__select small { margin:3px 0 8px; color:#777; }
+.ar-template-card__actions { padding:0 7px 7px; }
+.ar-template-card__actions button { min-height:38px; padding:7px 9px; }
+.ar-template-card__actions button.active { border-color:var(--primary); }
+.design-preview-strip { border:1px solid #eadfe5; border-radius:16px; background:#fff; padding:10px; margin:8px 0 12px; position:sticky; bottom:8px; z-index:5; box-shadow:0 8px 22px rgba(60,25,40,.12); }
+.design-preview-strip__head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px; }
+.design-preview-strip__head strong,.design-preview-strip__head small { display:block; }
+.design-preview-strip__head small { color:#777; font-size:.72rem; margin-top:2px; }
+.design-preview-strip__cta { min-height:42px; padding:8px 11px; white-space:nowrap; font-size:.78rem; }
+.design-preview-strip__scroll { display:flex; gap:3px; overflow-x:auto; justify-content:space-between; }
+.design-preview-strip__nail { flex:1 0 58px; display:flex; flex-direction:column; align-items:center; font-size:.65rem; color:#6f6469; }
+.design-preview-strip__nail canvas { width:58px; height:58px; }
+.nail-editor--compact .nail-editor__panel { margin-top:8px; }
+.nail-editor__finger-picker { display:flex; gap:5px; overflow-x:auto; margin:8px 0; }
+.nail-editor__finger-picker button { min-height:36px; padding:7px 9px; white-space:nowrap; }
+.ar-live-adjust { position:absolute; left:8px; right:8px; bottom:8px; z-index:3; display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px 10px; border-radius:12px; background:rgba(20,12,16,.72); backdrop-filter:blur(5px); color:white; }
+.ar-live-adjust label { min-width:0; }
+.ar-live-adjust span { display:flex; justify-content:space-between; font-size:.72rem; margin-bottom:2px; }
+.ar-live-adjust input { width:100%; accent-color:#fff; }
+@media (max-width:420px) {
+ .ar-template-card { flex-basis:150px; }
+ .ar-template-card__preview { height:108px; }
+ .ar-template-card__preview img { height:100px; }
+ .design-preview-strip { padding:8px; }
+ .design-preview-strip__head { align-items:stretch; }
+ .design-preview-strip__cta { font-size:.72rem; }
+ .design-preview-strip__nail { flex-basis:54px; }
+ .design-preview-strip__nail canvas { width:54px; height:54px; }
+}
