@@ -177,8 +177,10 @@ export function drawNailDesign(ctx, rect, nailConfig, opacity = 1) {
   // priorizan sobre el renderer genérico para que la forma real del diseño
   // (almond, square, stiletto, etc.) viaje con el dedo detectado.
   if (nailConfig.svgDesign) {
-    drawSvgNailDesign(ctx, rect, nailConfig.svgDesign, opacity);
-    return;
+    const rendered = drawSvgNailDesign(ctx, rect, nailConfig.svgDesign, opacity);
+    if (rendered) return;
+    // Si el SVG todavía no ha cargado (o falla su carga), no dejamos la uña invisible:
+    // continuamos con el renderer Canvas como fallback.
   }
   ctx.save();
   ctx.globalAlpha = opacity;
