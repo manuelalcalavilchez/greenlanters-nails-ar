@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { initHandTracker, detectForVideo, disposeHandTracker } from '../../ar/handTracker';
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
-import { mapLandmarksToCover } from '../../ar/videoMapping';
 import { drawNailDesign } from '../../ar/nailRenderer';
 
 const DETECTION_INTERVAL_MS = 55;
@@ -13,13 +12,13 @@ export default function ARCamera({ design }) {
   const streamRef = useRef(null);
   const rafRef = useRef(null);
   const smootherRef = useRef(createSmoother({ minCutoff: 1.2, beta: 0.4, dCutoff: 1.0 }));
-  const facingModeRef = useRef('user');
+  const facingModeRef = useRef('environment');
   const landmarksRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
 
   const [status, setStatus] = useState('idle');
-  const [facingMode, setFacingMode] = useState('user');
-  const [cameraName, setCameraName] = useState('Cámara frontal');
+  const [facingMode, setFacingMode] = useState('environment');
+  const [cameraName, setCameraName] = useState('Cámara trasera');
   const [manualAdjust, setManualAdjust] = useState({
     scale: 1, offsetX: 0, offsetY: 0, rotation: 0, opacity: 1
   });
@@ -107,9 +106,8 @@ export default function ARCamera({ design }) {
       await video.play();
 
       const canvas = canvasRef.current;
-      const viewport = video.parentElement;
-      canvas.width = viewport?.clientWidth || 960;
-      canvas.height = viewport?.clientHeight || 720;
+      canvas.width = video.videoWidth || 960;
+      canvas.height = video.videoHeight || 540;
 
       setStatus('running');
       renderLoop();
@@ -140,14 +138,7 @@ export default function ARCamera({ design }) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         landmarksRef.current.forEach((landmarks) => {
-          const mappedLandmarks = mapLandmarksToCover(
-            landmarks,
-            video.videoWidth,
-            video.videoHeight,
-            canvas.width,
-            canvas.height,
-          );
-          const rectsRaw = estimateHandNailRects(mappedLandmarks, design, {
+          const rectsRaw = estimateHandNailRects(landmarks, design, {
             width: canvas.width,
             height: canvas.height
           });
@@ -226,8 +217,8 @@ export default function ARCamera({ design }) {
       </div>
 
       {status === 'idle' && (
-        <button type="button" className="primary ar-start-button" onClick={() => startCamera('user')}>
-          Activar cámara
+        <button type="button" className="primary ar-start-button" onClick={() => startCamera('environment')}>
+          Activar cámara trasera
         </button>
       )}
 
