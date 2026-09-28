@@ -14,6 +14,28 @@ function normalize(x, y) {
   return { x: x / len, y: y / len };
 }
 
+// Ajuste de encaje de la uña sobre el dedo. Los valores por defecto no cambian
+// el comportamiento actual (shift 0, length 1, width 1). Para afinar en el móvil
+// sin redesplegar se pueden pasar por URL: ?shift=0.6&len=1.2&wid=1.2
+//   shift: desplazamiento de la uña hacia la punta, como fracción de la falange distal
+//   len:   multiplicador del largo de la uña
+//   wid:   multiplicador del ancho de la uña
+const FIT_DEFAULTS = { shift: 0, length: 1, width: 1 };
+
+function readFitOverrides() {
+  if (typeof window === 'undefined' || !window.location) return {};
+  const query = new URLSearchParams(window.location.search);
+  const read = (key) => {
+    if (!query.has(key)) return undefined;
+    const value = Number(query.get(key));
+    return Number.isFinite(value) ? value : undefined;
+  };
+  const overrides = { shift: read('shift'), length: read('len'), width: read('wid') };
+  return Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined));
+}
+
+export const NAIL_FIT = { ...FIT_DEFAULTS, ...readFitOverrides() };
+
 const SHAPE_ANCHORS = {
   round: { base: 0.70, tip: 0.72, tipWidth: 0.62, shoulder: 0.92 },
   oval: { base: 0.62, tip: 0.68, tipWidth: 0.46, shoulder: 0.82 },
@@ -99,7 +121,7 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
     canvasSize,
     proximalLen,
     distalLen,
-  );
+  ) * NAIL_FIT.width;
 
   const shape = getShapeById(shapeId);
   const nailLength = Math.max(
@@ -108,12 +130,12 @@ export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
       fingerWidthPx * shape.aspect,
       distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.97 : 0.94),
     ),
-  );
+  ) * NAIL_FIT.length;
 
   // La base queda prácticamente pegada al DIP, dejando solo un margen
   // pequeño para evitar que la máscara se meta en la articulación.
   const baseOffset = Math.max(1.2, distalLen * 0.025);
-  const centerAlongAxis = baseOffset + nailLength / 2;
+  const centerAlongAxis = baseOffset + nailLength / 2 + distalLen * NAIL_FIT.shift;
   const center = {
     x: dipPx.x + axis.x * centerAlongAxis,
     y: dipPx.y + axis.y * centerAlongAxis,

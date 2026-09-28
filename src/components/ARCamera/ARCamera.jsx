@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness } from '../../ar/handTracker';
+import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness, FINGER_LANDMARKS } from '../../ar/handTracker';
 import { estimateHandNailRects } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
@@ -229,6 +229,16 @@ export default function ARCamera({ design, preferredHand }) {
             ctx.fillStyle = 'rgba(255,0,0,.85)';
             for (const point of mappedLandmarks) {
               ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, Math.PI * 2); ctx.fill();
+            }
+            // DIP en azul y punta (TIP) en amarillo: sirven para ver si el desajuste
+            // viene de los landmarks o de las constantes de nailGeometry.js.
+            for (const finger of Object.values(FINGER_LANDMARKS)) {
+              for (const [index, color] of [[finger.dip, '#00aaff'], [finger.tip, '#ffe600']]) {
+                const point = mappedLandmarks[index];
+                if (!point) continue;
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, 5, 0, Math.PI * 2); ctx.fill();
+              }
             }
             ctx.restore();
           }
