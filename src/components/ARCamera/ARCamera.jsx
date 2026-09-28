@@ -29,6 +29,8 @@ export default function ARCamera({ design, preferredHand }) {
   });
   const manualAdjustRef = useRef(manualAdjust);
   const [errorMsg, setErrorMsg] = useState('');
+  const debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+  const [debugInfo, setDebugInfo] = useState({ hands: 0, chosen: -1, rects: 0, video: '0x0', canvas: '0x0' });
 
   useEffect(() => { manualAdjustRef.current = manualAdjust; }, [manualAdjust]);
   useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
@@ -200,6 +202,22 @@ export default function ARCamera({ design, preferredHand }) {
             height: canvas.height
           });
 
+          if (debugEnabled) {
+            setDebugInfo({
+              hands: hands.length,
+              chosen: chosenIndex,
+              rects: Object.values(rectsRaw || {}).filter(Boolean).length,
+              video: video.videoWidth + 'x' + video.videoHeight,
+              canvas: canvas.width + 'x' + canvas.height,
+            });
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,0,0,.85)';
+            for (const point of mappedLandmarks) {
+              ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore();
+          }
+
           for (const nail of design.nails) {
             const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger], now);
             if (!smoothed) continue;
@@ -207,6 +225,7 @@ export default function ARCamera({ design, preferredHand }) {
             drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
           }
         } else {
+          if (debugEnabled) setDebugInfo({ hands: hands.length, chosen: -1, rects: 0, video: video.videoWidth + 'x' + video.videoHeight, canvas: canvas.width + 'x' + canvas.height });
           // Sin mano rastreada este frame: limpiamos el estado del suavizador
           // para que, cuando la mano reaparezca, no arrastre un salto de
           // tiempo (dt) enorme desde el último dato válido.
@@ -279,6 +298,7 @@ export default function ARCamera({ design, preferredHand }) {
         {status === 'no-hand' && <div className="ar-hint">Acerca la mano a la cámara.</div>}
         {status === 'loading' && <div className="ar-hint">Preparando cámara…</div>}
         {status === 'error' && <div className="ar-hint ar-hint--error">{errorMsg}</div>}
+        {debugEnabled && <div style={{position:'absolute',zIndex:10,left:8,top:8,padding:'6px 8px',background:'rgba(0,0,0,.72)',color:'#fff',font:'12px monospace',borderRadius:6,pointerEvents:'none'}}>AR debug ? manos {debugInfo.hands} ? elegida {debugInfo.chosen} ? u?as {debugInfo.rects}<br/>{debugInfo.video} ? {debugInfo.canvas}</div>}
 
         {status !== 'idle' && status !== 'error' && (
           <div className="ar-live-adjust">
