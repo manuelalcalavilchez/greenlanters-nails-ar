@@ -1,9 +1,11 @@
 // One-Euro adaptativo por dedo: fuerte en reposo, reactivo al mover la mano.
 export function createSmoother(options = {}) {
   const state = new Map();
-  const minCutoff = options.minCutoff ?? 1.2;
-  const beta = options.beta ?? 0.4;
-  const dCutoff = options.dCutoff ?? 1.0;
+  const config = {
+    minCutoff: options.minCutoff ?? 1.2,
+    beta: options.beta ?? 0.4,
+    dCutoff: options.dCutoff ?? 1.0,
+  };
 
   function smooth(fingerId, rect, timestampMs = performance.now()) {
     if (!rect) {
@@ -13,7 +15,7 @@ export function createSmoother(options = {}) {
 
     let filters = state.get(fingerId);
     if (!filters) {
-      filters = createRectFilters();
+      filters = createRectFilters(config);
       state.set(fingerId, filters);
       return rect;
     }
@@ -35,9 +37,8 @@ export function createSmoother(options = {}) {
 
   return { smooth, reset };
 }
-
-function createRectFilters() {
-  const make = () => new OneEuroScalar({ minCutoff, beta, dCutoff });
+function createRectFilters(config) {
+  const make = () => new OneEuroScalar(config);
   const contour = {};
   for (const key of [
     'baseLeft', 'baseRight', 'leftControl1', 'leftControl2',
@@ -51,7 +52,7 @@ function createRectFilters() {
     y: make(),
     width: make(),
     height: make(),
-    angle: makeAngleFilter(),
+    angle: makeAngleFilter(config),
     contour,
   };
 }
@@ -68,9 +69,7 @@ function smoothContourWithFilters(filters, current, timestampMs) {
   }
   contour.cuticleCurve = filters.cuticleCurve.filter(current.cuticleCurve, timestampMs);
   return contour;
-}
-
-class OneEuroScalar {
+}class OneEuroScalar {
   constructor({ minCutoff: min, beta: b, dCutoff: dc }) {
     this.minCutoff = min;
     this.beta = b;
@@ -99,8 +98,8 @@ class OneEuroScalar {
   }
 }
 
-function makeAngleFilter() {
-  const scalar = new OneEuroScalar({ minCutoff, beta, dCutoff });
+function makeAngleFilter(config) {
+  const scalar = new OneEuroScalar(config);
   return {
     filter(value, timestampMs) {
       return scalar.filter(value, timestampMs);

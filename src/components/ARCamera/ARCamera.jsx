@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness } from '../../ar/handTracker';
-import { estimateHandNailRects } from '../../ar/nailGeometry';
+import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness, FINGER_LANDMARKS } from '../../ar/handTracker';
+import { estimateHandNailRects, NAIL_FIT } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
 import { mapLandmarksToCover } from '../../ar/videoMapping';
 
 const DETECTION_INTERVAL_MS = 55;
+const HAND_LOST_GRACE_MS = 350;
 
 export default function ARCamera({ design, preferredHand }) {
   const trackedHand = preferredHand || design?.hand || 'right';
@@ -20,6 +21,9 @@ export default function ARCamera({ design, preferredHand }) {
   const handednessRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
+  const lastHandCenterRef = useRef(null);
+  const lastRectsRef = useRef(null);
+  const handLostAtRef = useRef(0);
 
   const [status, setStatus] = useState('idle');
   const [facingMode, setFacingMode] = useState('environment');
@@ -29,6 +33,17 @@ export default function ARCamera({ design, preferredHand }) {
   });
   const manualAdjustRef = useRef(manualAdjust);
   const [errorMsg, setErrorMsg] = useState('');
+  const debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+  const [fit, setFit] = useState({ ...NAIL_FIT });
+  const [debugInfo, setDebugInfo] = useState({ hands: 0, chosen: -1, rects: 0, video: '0x0', canvas: '0x0' });
+
+  // Solo en modo debug: los sliders de encaje modifican NAIL_FIT en vivo (se lee en cada frame).
+  const updateFit = (key, value) => {
+    NAIL_FIT[key] = value;
+    setFit((current) => ({ ...current, [key]: value }));
+  };
+  const fitQuery = 'shift=' + fit.shift.toFixed(2) + '&len=' + fit.length.toFixed(2) + '&wid=' + fit.width.toFixed(2)
+    + '&tlen=' + fit.thumbLength.toFixed(2) + '&twid=' + fit.thumbWidth.toFixed(2);
 
   useEffect(() => { manualAdjustRef.current = manualAdjust; }, [manualAdjust]);
   useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
@@ -173,15 +188,22 @@ export default function ARCamera({ design, preferredHand }) {
         const hands = landmarksRef.current;
         const handednessResults = handednessRef.current;
         const isFrontCamera = facingModeRef.current === 'user';
-        let chosenIndex = hands.length ? 0 : -1;
+        let chosenIndex = -1;
         for (let i = 0; i < hands.length; i += 1) {
           const label = handednessResults[i]?.[0]?.categoryName;
           const resolved = label ? resolveHandedness(label, isFrontCamera) : null;
-          if (resolved === trackedHand) {
-            chosenIndex = i;
-            break;
-          }
+          if (resolved === trackedHand) { chosenIndex = i; break; }
         }
+        if (chosenIndex < 0 && hands.length && lastHandCenterRef.current) {
+          let bestDistance = Infinity;
+          hands.forEach((hand, index) => {
+            const wrist = hand?.[0];
+            if (!wrist) return;
+            const distance = Math.hypot(wrist.x - lastHandCenterRef.current.x, wrist.y - lastHandCenterRef.current.y);
+            if (distance < bestDistance) { bestDistance = distance; chosenIndex = index; }
+          });
+        }
+        if (chosenIndex < 0 && hands.length) chosenIndex = 0;
         const landmarks = chosenIndex >= 0 ? hands[chosenIndex] : null;
 
         if (landmarks) {
@@ -199,6 +221,36 @@ export default function ARCamera({ design, preferredHand }) {
             width: canvas.width,
             height: canvas.height
           });
+          lastRectsRef.current = rectsRaw;
+          handLostAtRef.current = 0;
+          const wrist = mappedLandmarks?.[0];
+          if (wrist) lastHandCenterRef.current = { x: wrist.x, y: wrist.y };
+
+          if (debugEnabled) {
+            setDebugInfo({
+              hands: hands.length,
+              chosen: chosenIndex,
+              rects: Object.values(rectsRaw || {}).filter(Boolean).length,
+              video: video.videoWidth + 'x' + video.videoHeight,
+              canvas: canvas.width + 'x' + canvas.height,
+            });
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,0,0,.85)';
+            for (const point of mappedLandmarks) {
+              ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, 3, 0, Math.PI * 2); ctx.fill();
+            }
+            // DIP en azul y punta (TIP) en amarillo: sirven para ver si el desajuste
+            // viene de los landmarks o de las constantes de nailGeometry.js.
+            for (const finger of Object.values(FINGER_LANDMARKS)) {
+              for (const [index, color] of [[finger.dip, '#00aaff'], [finger.tip, '#ffe600']]) {
+                const point = mappedLandmarks[index];
+                if (!point) continue;
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, 5, 0, Math.PI * 2); ctx.fill();
+              }
+            }
+            ctx.restore();
+          }
 
           for (const nail of design.nails) {
             const smoothed = smootherRef.current.smooth(nail.finger, rectsRaw[nail.finger], now);
@@ -207,12 +259,21 @@ export default function ARCamera({ design, preferredHand }) {
             drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
           }
         } else {
-          // Sin mano rastreada este frame: limpiamos el estado del suavizador
-          // para que, cuando la mano reaparezca, no arrastre un salto de
-          // tiempo (dt) enorme desde el último dato válido.
-          for (const nail of design.nails) {
-            smootherRef.current.smooth(nail.finger, null, now);
+          if (!handLostAtRef.current) handLostAtRef.current = now;
+          const withinGrace = lastRectsRef.current && (now - handLostAtRef.current) < HAND_LOST_GRACE_MS;
+          if (withinGrace) {
+            for (const nail of design.nails) {
+              const smoothed = smootherRef.current.smooth(nail.finger, lastRectsRef.current[nail.finger], now);
+              if (!smoothed) continue;
+              const adjusted = applyManualAdjust(smoothed, manualAdjustRef.current, canvas);
+              drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
+            }
+          } else {
+            lastHandCenterRef.current = null;
+            lastRectsRef.current = null;
+            for (const nail of design.nails) smootherRef.current.smooth(nail.finger, null, now);
           }
+          if (debugEnabled) setDebugInfo({ hands: hands.length, chosen: chosenIndex, rects: withinGrace ? Object.values(lastRectsRef.current || {}).filter(Boolean).length : 0, video: video.videoWidth + 'x' + video.videoHeight, canvas: canvas.width + 'x' + canvas.height });
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -279,6 +340,7 @@ export default function ARCamera({ design, preferredHand }) {
         {status === 'no-hand' && <div className="ar-hint">Acerca la mano a la cámara.</div>}
         {status === 'loading' && <div className="ar-hint">Preparando cámara…</div>}
         {status === 'error' && <div className="ar-hint ar-hint--error">{errorMsg}</div>}
+        {debugEnabled && <div style={{position:'absolute',zIndex:10,left:8,top:8,padding:'6px 8px',background:'rgba(0,0,0,.72)',color:'#fff',font:'12px monospace',borderRadius:6,pointerEvents:'none'}}>AR debug ? manos {debugInfo.hands} ? elegida {debugInfo.chosen} ? u?as {debugInfo.rects}<br/>{debugInfo.video} ? {debugInfo.canvas}</div>}
 
         {status !== 'idle' && status !== 'error' && (
           <div className="ar-live-adjust">
@@ -311,6 +373,26 @@ export default function ARCamera({ design, preferredHand }) {
             <button type="button" onClick={handleCaptureAndShare}>Capturar</button>
           </div>
           <span className="ar-camera-current">{cameraName} · ajuste automático activo</span>
+
+          {debugEnabled && (
+            <div style={{ background: '#fff', border: '1px solid #DDE7D2', borderRadius: 12, padding: '9px 11px', display: 'grid', gap: 6 }}>
+              <strong style={{ color: '#082D05', fontSize: '.82rem' }}>Encaje de uñas (solo debug)</strong>
+              {[
+                ['shift', 'Desplazar a la punta', -0.2, 0.9, 0.01],
+                ['length', 'Largo', 0.6, 1.6, 0.01],
+                ['width', 'Ancho', 0.6, 1.6, 0.01],
+                ['thumbLength', 'Largo pulgar (extra)', 0.4, 1.4, 0.01],
+                ['thumbWidth', 'Ancho pulgar (extra)', 0.4, 1.4, 0.01],
+              ].map(([key, label, min, max, step]) => (
+                <label key={key} style={{ display: 'grid', gap: 2, fontSize: '.8rem' }}>
+                  <span>{label}: <b>{fit[key].toFixed(2)}</b></span>
+                  <input type="range" min={min} max={max} step={step} value={fit[key]}
+                    onChange={(e) => updateFit(key, Number(e.target.value))} />
+                </label>
+              ))}
+              <code style={{ fontSize: '.75rem', wordBreak: 'break-all', userSelect: 'all' }}>?debug=1&{fitQuery}</code>
+            </div>
+          )}
 
           <details className="ar-fine-tune">
             <summary>Ajuste fino</summary>
