@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { initHandTracker, detectForVideo, disposeHandTracker, resolveHandedness, FINGER_LANDMARKS } from '../../ar/handTracker';
-import { estimateHandNailRects } from '../../ar/nailGeometry';
+import { estimateHandNailRects, NAIL_FIT } from '../../ar/nailGeometry';
 import { createSmoother } from '../../ar/coordinateSmoothing';
 import { drawNailDesign } from '../../ar/nailRenderer';
 import { mapLandmarksToCover } from '../../ar/videoMapping';
@@ -34,7 +34,16 @@ export default function ARCamera({ design, preferredHand }) {
   const manualAdjustRef = useRef(manualAdjust);
   const [errorMsg, setErrorMsg] = useState('');
   const debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+  const [fit, setFit] = useState({ ...NAIL_FIT });
   const [debugInfo, setDebugInfo] = useState({ hands: 0, chosen: -1, rects: 0, video: '0x0', canvas: '0x0' });
+
+  // Solo en modo debug: los sliders de encaje modifican NAIL_FIT en vivo (se lee en cada frame).
+  const updateFit = (key, value) => {
+    NAIL_FIT[key] = value;
+    setFit((current) => ({ ...current, [key]: value }));
+  };
+  const fitQuery = 'shift=' + fit.shift.toFixed(2) + '&len=' + fit.length.toFixed(2) + '&wid=' + fit.width.toFixed(2)
+    + '&tlen=' + fit.thumbLength.toFixed(2) + '&twid=' + fit.thumbWidth.toFixed(2);
 
   useEffect(() => { manualAdjustRef.current = manualAdjust; }, [manualAdjust]);
   useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
@@ -364,6 +373,26 @@ export default function ARCamera({ design, preferredHand }) {
             <button type="button" onClick={handleCaptureAndShare}>Capturar</button>
           </div>
           <span className="ar-camera-current">{cameraName} · ajuste automático activo</span>
+
+          {debugEnabled && (
+            <div style={{ background: '#fff', border: '1px solid #DDE7D2', borderRadius: 12, padding: '9px 11px', display: 'grid', gap: 6 }}>
+              <strong style={{ color: '#082D05', fontSize: '.82rem' }}>Encaje de uñas (solo debug)</strong>
+              {[
+                ['shift', 'Desplazar a la punta', -0.2, 0.9, 0.01],
+                ['length', 'Largo', 0.6, 1.6, 0.01],
+                ['width', 'Ancho', 0.6, 1.6, 0.01],
+                ['thumbLength', 'Largo pulgar (extra)', 0.4, 1.4, 0.01],
+                ['thumbWidth', 'Ancho pulgar (extra)', 0.4, 1.4, 0.01],
+              ].map(([key, label, min, max, step]) => (
+                <label key={key} style={{ display: 'grid', gap: 2, fontSize: '.8rem' }}>
+                  <span>{label}: <b>{fit[key].toFixed(2)}</b></span>
+                  <input type="range" min={min} max={max} step={step} value={fit[key]}
+                    onChange={(e) => updateFit(key, Number(e.target.value))} />
+                </label>
+              ))}
+              <code style={{ fontSize: '.75rem', wordBreak: 'break-all', userSelect: 'all' }}>?debug=1&{fitQuery}</code>
+            </div>
+          )}
 
           <details className="ar-fine-tune">
             <summary>Ajuste fino</summary>
