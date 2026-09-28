@@ -6,6 +6,7 @@ import { drawNailDesign } from '../../ar/nailRenderer';
 import { mapLandmarksToCover } from '../../ar/videoMapping';
 
 const DETECTION_INTERVAL_MS = 55;
+const HAND_LOST_GRACE_MS = 350;
 
 export default function ARCamera({ design, preferredHand }) {
   const trackedHand = preferredHand || design?.hand || 'right';
@@ -20,6 +21,9 @@ export default function ARCamera({ design, preferredHand }) {
   const handednessRef = useRef([]);
   const lastDetectionAtRef = useRef(0);
   const lastVideoTimeRef = useRef(-1);
+  const lastHandCenterRef = useRef(null);
+  const lastRectsRef = useRef(null);
+  const handLostAtRef = useRef(0);
 
   const [status, setStatus] = useState('idle');
   const [facingMode, setFacingMode] = useState('environment');
@@ -175,15 +179,22 @@ export default function ARCamera({ design, preferredHand }) {
         const hands = landmarksRef.current;
         const handednessResults = handednessRef.current;
         const isFrontCamera = facingModeRef.current === 'user';
-        let chosenIndex = hands.length ? 0 : -1;
+        let chosenIndex = -1;
         for (let i = 0; i < hands.length; i += 1) {
           const label = handednessResults[i]?.[0]?.categoryName;
           const resolved = label ? resolveHandedness(label, isFrontCamera) : null;
-          if (resolved === trackedHand) {
-            chosenIndex = i;
-            break;
-          }
+          if (resolved === trackedHand) { chosenIndex = i; break; }
         }
+        if (chosenIndex < 0 && hands.length && lastHandCenterRef.current) {
+          let bestDistance = Infinity;
+          hands.forEach((hand, index) => {
+            const wrist = hand?.[0];
+            if (!wrist) return;
+            const distance = Math.hypot(wrist.x - lastHandCenterRef.current.x, wrist.y - lastHandCenterRef.current.y);
+            if (distance < bestDistance) { bestDistance = distance; chosenIndex = index; }
+          });
+        }
+        if (chosenIndex < 0 && hands.length) chosenIndex = 0;
         const landmarks = chosenIndex >= 0 ? hands[chosenIndex] : null;
 
         if (landmarks) {
@@ -201,6 +212,10 @@ export default function ARCamera({ design, preferredHand }) {
             width: canvas.width,
             height: canvas.height
           });
+          lastRectsRef.current = rectsRaw;
+          handLostAtRef.current = 0;
+          const wrist = mappedLandmarks?.[0];
+          if (wrist) lastHandCenterRef.current = { x: wrist.x, y: wrist.y };
 
           if (debugEnabled) {
             setDebugInfo({
@@ -225,13 +240,21 @@ export default function ARCamera({ design, preferredHand }) {
             drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
           }
         } else {
-          if (debugEnabled) setDebugInfo({ hands: hands.length, chosen: -1, rects: 0, video: video.videoWidth + 'x' + video.videoHeight, canvas: canvas.width + 'x' + canvas.height });
-          // Sin mano rastreada este frame: limpiamos el estado del suavizador
-          // para que, cuando la mano reaparezca, no arrastre un salto de
-          // tiempo (dt) enorme desde el último dato válido.
-          for (const nail of design.nails) {
-            smootherRef.current.smooth(nail.finger, null, now);
+          if (!handLostAtRef.current) handLostAtRef.current = now;
+          const withinGrace = lastRectsRef.current && (now - handLostAtRef.current) < HAND_LOST_GRACE_MS;
+          if (withinGrace) {
+            for (const nail of design.nails) {
+              const smoothed = smootherRef.current.smooth(nail.finger, lastRectsRef.current[nail.finger], now);
+              if (!smoothed) continue;
+              const adjusted = applyManualAdjust(smoothed, manualAdjustRef.current, canvas);
+              drawNailDesign(ctx, adjusted, nail, manualAdjustRef.current.opacity);
+            }
+          } else {
+            lastHandCenterRef.current = null;
+            lastRectsRef.current = null;
+            for (const nail of design.nails) smootherRef.current.smooth(nail.finger, null, now);
           }
+          if (debugEnabled) setDebugInfo({ hands: hands.length, chosen: chosenIndex, rects: withinGrace ? Object.values(lastRectsRef.current || {}).filter(Boolean).length : 0, video: video.videoWidth + 'x' + video.videoHeight, canvas: canvas.width + 'x' + canvas.height });
         }
       }
       rafRef.current = requestAnimationFrame(tick);
