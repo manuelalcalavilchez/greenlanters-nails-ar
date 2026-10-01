@@ -1,9 +1,59 @@
+import { drawSvgNailDesign } from './svgDesignRenderer';
+
 // nailRenderer.js
-// Dibuja el diseño de cada uña sobre un canvas 2D, en la posición/rotación
+// Dibuja el diseÃ±o de cada uÃ±a sobre un canvas 2D, en la posiciÃ³n/rotaciÃ³n
 // dada por nailGeometry.js. Los patrones y adornos se renderizan en el
-// espacio local de cada uña para acompañar el seguimiento de la mano.
+// espacio local de cada uÃ±a para acompaÃ±ar el seguimiento de la mano.
 
 function applyNailPath(ctx, rect) {
+  if (rect.contour?.baseLeft) {
+    const c = rect.contour;
+    ctx.beginPath();
+    ctx.moveTo(c.baseLeft.x, c.baseLeft.y);
+    ctx.quadraticCurveTo(
+      -rect.width * 0.12,
+      c.baseLeft.y - c.cuticleCurve,
+      0,
+      c.baseLeft.y - c.cuticleCurve * 1.15,
+    );
+    ctx.quadraticCurveTo(
+      rect.width * 0.12,
+      c.baseRight.y - c.cuticleCurve,
+      c.baseRight.x,
+      c.baseRight.y,
+    );
+    ctx.bezierCurveTo(
+      c.rightControl1.x,
+      c.rightControl1.y,
+      c.rightControl2.x,
+      c.rightControl2.y,
+      c.tipRight.x,
+      c.tipRight.y,
+    );
+    ctx.quadraticCurveTo(
+      rect.width * 0.08,
+      c.tipRight.y - rect.height * 0.035,
+      0,
+      c.tipRight.y,
+    );
+    ctx.quadraticCurveTo(
+      -rect.width * 0.08,
+      c.tipLeft.y - rect.height * 0.035,
+      c.tipLeft.x,
+      c.tipLeft.y,
+    );
+    ctx.bezierCurveTo(
+      c.leftControl2.x,
+      c.leftControl2.y,
+      c.leftControl1.x,
+      c.leftControl1.y,
+      c.baseLeft.x,
+      c.baseLeft.y,
+    );
+    ctx.closePath();
+    return;
+  }
+
   const w = rect.width / 2;
   const h = rect.height / 2;
   const curve = h * rect.tipCurve;
@@ -122,6 +172,16 @@ function paintFloral(ctx, x, y, w, h) {
 
 export function drawNailDesign(ctx, rect, nailConfig, opacity = 1) {
   if (!rect || !nailConfig) return;
+
+  // Los diseños SVG suministrados incluyen su propia silueta/máscara. Se
+  // priorizan sobre el renderer genérico para que la forma real del diseño
+  // (almond, square, stiletto, etc.) viaje con el dedo detectado.
+  if (nailConfig.svgDesign) {
+    const rendered = drawSvgNailDesign(ctx, rect, nailConfig.svgDesign, opacity);
+    if (rendered) return;
+    // Si el SVG todavía no ha cargado (o falla su carga), no dejamos la uña invisible:
+    // continuamos con el renderer Canvas como fallback.
+  }
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.translate(rect.x, rect.y);
@@ -258,6 +318,19 @@ function drawPearl(ctx, color, size) {
   ctx.fill();
 }
 
+const imageCache = new Map();
+
+function getDecorationImage(src) {
+  if (!src) return null;
+  const cached = imageCache.get(src);
+  if (cached) return cached;
+  const image = new Image();
+  image.onload = () => imageCache.set(src, image);
+  image.src = src;
+  imageCache.set(src, image);
+  return image;
+}
+
 function drawDecorations(ctx, decorations = [], x, y, w, h) {
   for (const deco of decorations) {
     const px = x + (deco.x ?? 0.5) * w;
@@ -291,6 +364,27 @@ function drawDecorations(ctx, decorations = [], x, y, w, h) {
       drawCrystal(ctx, deco.color || '#B7D8FF', size);
     } else if (deco.type === 'pearl') {
       drawPearl(ctx, deco.color || '#FFFFFF', size);
+    } else if (deco.type === 'image') {
+      const image = getDecorationImage(deco.src);
+      if (image?.complete && image.naturalWidth > 0) {
+        ctx.globalAlpha *= 0.98;
+        if (deco.mode === 'template-nail') {
+          const slot = Math.max(0, Math.min(4, deco.slot ?? 0));
+          const sourceW = deco.templateWidth || image.naturalWidth;
+          const sourceH = deco.templateHeight || image.naturalHeight;
+          const slotW = sourceW / 5;
+          const sx = slot * slotW;
+          const sy = sourceH * 0.16;
+          const sh = sourceH * 0.70;
+          ctx.drawImage(image, sx, sy, slotW, sh, x, y, w, h);
+        } else {
+          const imageSize = size * 2.8;
+          const ratio = image.naturalWidth / image.naturalHeight || 1;
+          const drawW = ratio >= 1 ? imageSize : imageSize * ratio;
+          const drawH = ratio >= 1 ? imageSize / ratio : imageSize;
+          ctx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+        }
+      }
     }
     ctx.restore();
   }

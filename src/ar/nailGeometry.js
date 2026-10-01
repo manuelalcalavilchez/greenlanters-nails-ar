@@ -1,83 +1,170 @@
-// nailGeometry.js
-// LIMITACIÓN IMPORTANTE (léela antes de tocar este archivo):
-// MediaPipe HandLandmarker NO detecta la uña. Da 21 puntos del esqueleto de
-// la mano. Todo lo de aquí es una ESTIMACIÓN geométrica de dónde está la uña
-// a partir de esos puntos, no una segmentación real. Funciona bien para
-// overlays tipo "sticker que sigue al dedo" pero:
-//   - No sigue el contorno real de la uña de la usuaria (cutícula, forma
-//     real de su uña) — asume una uña "genérica" centrada en la falange distal.
-//   - Es sensible a oclusiones y a ángulos de mano muy laterales.
-//   - No corrige por longitud de uña real (una uña muy larga sobresale del
-//     dedo; esto lo compensamos parcialmente con `NAIL_SHAPES.aspect`, pero
-//     no es exacto).
-// Mejora futura: modelo de segmentación de uñas entrenado específicamente
-// (ver sección "Mejoras futuras" en el README).
-
 import { FINGER_LANDMARKS } from './handTracker';
 import { getShapeById } from '../data/nailShapes';
 
-function dist(a, b) {
+function pxPoint(point, canvasSize) {
+  return { x: point.x * canvasSize.width, y: point.y * canvasSize.height };
+}
+
+function distancePx(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-/**
- * Calcula el rectángulo orientado (centro, ancho, alto, ángulo) donde debe
- * dibujarse el diseño de una uña, a partir de los landmarks de un dedo.
- *
- * @param {Array<{x:number,y:number,z:number}>} landmarks - los 21 puntos normalizados [0,1] de MediaPipe
- * @param {string} fingerId - 'thumb' | 'index' | 'middle' | 'ring' | 'pinky'
- * @param {string} shapeId - id de NAIL_SHAPES, afecta el aspect ratio del rectángulo
- * @param {{width:number,height:number}} canvasSize - tamaño en px del canvas destino
- */
+function normalize(x, y) {
+  const len = Math.hypot(x, y) || 1;
+  return { x: x / len, y: y / len };
+}
+
+// Ajuste de encaje de la uña sobre el dedo. Los valores por defecto no cambian
+// el comportamiento actual (shift 0, length 1, width 1). Para afinar en el móvil
+// sin redesplegar se pueden pasar por URL: ?shift=0.6&len=1.2&wid=1.2
+//   shift: desplazamiento de la uña hacia la punta, como fracción de la falange distal
+//   len:   multiplicador del largo de la uña
+//   wid:   multiplicador del ancho de la uña
+//   tlen / twid: multiplicadores extra solo para el pulgar (se suman a len / wid)
+const FIT_DEFAULTS = { shift: 0, length: 1, width: 1, thumbLength: 1, thumbWidth: 1 };
+
+function readFitOverrides() {
+  if (typeof window === 'undefined' || !window.location) return {};
+  const query = new URLSearchParams(window.location.search);
+  const read = (key) => {
+    if (!query.has(key)) return undefined;
+    const value = Number(query.get(key));
+    return Number.isFinite(value) ? value : undefined;
+  };
+  const overrides = {
+    shift: read('shift'), length: read('len'), width: read('wid'),
+    thumbLength: read('tlen'), thumbWidth: read('twid'),
+  };
+  return Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined));
+}
+
+export const NAIL_FIT = { ...FIT_DEFAULTS, ...readFitOverrides() };
+
+const SHAPE_ANCHORS = {
+  round: { base: 0.70, tip: 0.72, tipWidth: 0.62, shoulder: 0.92 },
+  oval: { base: 0.62, tip: 0.68, tipWidth: 0.46, shoulder: 0.82 },
+  almond: { base: 0.64, tip: 0.08, tipWidth: 0.04, shoulder: 0.78 },
+  square: { base: 0.64, tip: 0.15, tipWidth: 0.48, shoulder: 0.94 },
+  coffin: { base: 0.50, tip: 0.18, tipWidth: 0.66, shoulder: 0.86 },
+  stiletto: { base: 0.64, tip: 0.08, tipWidth: 0.04, shoulder: 0.72 },
+};
+
+function getFingerWidth(landmarks, fingerId, canvasSize, proximalLen, distalLen) {
+  const p = landmarks.map((point) => pxPoint(point, canvasSize));
+
+  if (fingerId === 'thumb') {
+    return Math.max(17, distalLen * 0.88, proximalLen * 0.64);
+  }
+
+  const distalNeighbors = {
+    index: [p[7], p[11]],
+    middle: [p[7], p[15]],
+    ring: [p[11], p[19]],
+    pinky: [p[15], p[19]],
+  };
+
+  // La anchura de la placa ungueal se relaciona mejor con la falange distal
+  // que con la falange proximal. Los ratios siguen la calibración del demo
+  // de referencia, pero conservamos el contour adaptativo de este proyecto.
+  const distalWidthRatio = {
+    index: 0.78,
+    middle: 0.74,
+    ring: 0.72,
+    pinky: 0.80,
+  }[fingerId] || 0.75;
+  const pair = distalNeighbors[fingerId];
+  const neighborSpan = pair?.[0] && pair?.[1] ? distancePx(pair[0], pair[1]) : 0;
+  const neighborWidth = neighborSpan * (fingerId === 'pinky' ? 0.30 : 0.27);
+  return Math.max(14, distalLen * distalWidthRatio, neighborWidth);
+}
+
+function buildContour(shape, width, length, fingerId) {
+  const anchor = SHAPE_ANCHORS[shape.id] || SHAPE_ANCHORS.round;
+  const half = width / 2;
+  const baseHalf = half * anchor.base;
+  const shoulderHalf = half * anchor.shoulder;
+  const tipHalf = half * anchor.tipWidth;
+  const cuticleCurve = length * (fingerId === 'thumb' ? 0.08 : 0.065);
+
+  // Coordenadas locales: +Y apunta hacia la cutícula y -Y hacia la punta.
+  // La base queda ligeramente más ancha y curvada, como una uña real.
+  return {
+    baseLeft: { x: -baseHalf, y: length * 0.5 },
+    baseRight: { x: baseHalf, y: length * 0.5 },
+    leftControl1: { x: -shoulderHalf, y: length * 0.39 },
+    leftControl2: { x: -shoulderHalf, y: -length * 0.14 },
+    rightControl1: { x: shoulderHalf, y: -length * 0.14 },
+    rightControl2: { x: shoulderHalf, y: length * 0.39 },
+    tipLeft: { x: -tipHalf, y: -length * (0.5 - anchor.tip * 0.42) },
+    tipRight: { x: tipHalf, y: -length * (0.5 - anchor.tip * 0.42) },
+    cuticleCurve,
+  };
+}
+
 export function estimateNailRect(landmarks, fingerId, shapeId, canvasSize) {
   const idx = FINGER_LANDMARKS[fingerId];
   if (!idx) return null;
 
+  const pip = landmarks[idx.pip];
   const dip = landmarks[idx.dip];
   const tip = landmarks[idx.tip];
-  const pip = landmarks[idx.pip];
-  if (!dip || !tip) return null;
+  const mcp = landmarks[idx.mcp];
+  if (!pip || !dip || !tip || !mcp) return null;
 
-  // Dirección del dedo: vector de la articulación intermedia a la punta.
-  const dirX = tip.x - pip.x;
-  const dirY = tip.y - pip.y;
-  const dirLen = Math.hypot(dirX, dirY) || 1;
-  const angleRad = Math.atan2(dirY, dirX);
+  const pipPx = pxPoint(pip, canvasSize);
+  const dipPx = pxPoint(dip, canvasSize);
+  const tipPx = pxPoint(tip, canvasSize);
+  const mcpPx = pxPoint(mcp, canvasSize);
 
-  // Ancho del dedo aproximado como una fracción de la distancia pip->dip,
-  // ya que MediaPipe no da anchura directamente. Factor calibrado
-  // empíricamente (0.55) para falange distal media; ajustable por dedo.
-  const phalanxLen = dist(pip, dip) * (canvasSize.width); // en px (x e y normalizados igual si canvas es cuadrado; ver nota abajo)
-  const widthFactor = fingerId === 'thumb' ? 0.75 : 0.55;
-  const fingerWidthPx = Math.max(phalanxLen * widthFactor, 8);
+  const axis = normalize(tipPx.x - dipPx.x, tipPx.y - dipPx.y);
+  const proximalLen = distancePx(mcpPx, pipPx);
+  const distalLen = distancePx(dipPx, tipPx);
+  const fingerWidthPx = getFingerWidth(
+    landmarks,
+    fingerId,
+    canvasSize,
+    proximalLen,
+    distalLen,
+  ) * NAIL_FIT.width * (fingerId === 'thumb' ? NAIL_FIT.thumbWidth : 1);
 
   const shape = getShapeById(shapeId);
-  const nailHeightPx = fingerWidthPx * shape.aspect;
+  const nailLength = Math.max(
+    16,
+    Math.min(
+      fingerWidthPx * shape.aspect,
+      distalLen * (shape.id === 'stiletto' || shape.id === 'almond' ? 0.97 : 0.94),
+    ),
+  ) * NAIL_FIT.length * (fingerId === 'thumb' ? NAIL_FIT.thumbLength : 1);
 
-  // Centro del rectángulo: entre DIP y TIP, ligeramente desplazado hacia
-  // la punta (la uña ocupa el tercio distal de la falange, no toda ella).
-  const centerX = (dip.x + tip.x * 1.4) / 2.4 * canvasSize.width;
-  const centerY = (dip.y + tip.y * 1.4) / 2.4 * canvasSize.height;
+  // La base queda prácticamente pegada al DIP, dejando solo un margen
+  // pequeño para evitar que la máscara se meta en la articulación.
+  const baseOffset = Math.max(1.2, distalLen * 0.025);
+  const centerAlongAxis = baseOffset + nailLength / 2 + distalLen * NAIL_FIT.shift;
+  const center = {
+    x: dipPx.x + axis.x * centerAlongAxis,
+    y: dipPx.y + axis.y * centerAlongAxis,
+  };
 
   return {
-    x: centerX,
-    y: centerY,
+    x: center.x,
+    y: center.y,
     width: fingerWidthPx,
-    height: nailHeightPx,
-    angle: angleRad + Math.PI / 2, // +90° porque el "alto" del rectángulo va a lo largo del dedo
+    height: nailLength,
+    angle: Math.atan2(axis.y, axis.x) + Math.PI / 2,
     tipCurve: shape.tipCurve,
+    contour: buildContour(shape, fingerWidthPx, nailLength, fingerId),
   };
 }
 
-/**
- * Calcula los 5 rectángulos de uña para una mano detectada.
- * Devuelve { thumb: rect, index: rect, ... } (rect puede ser null si el
- * landmark no es fiable).
- */
 export function estimateHandNailRects(landmarks, nailDesign, canvasSize) {
   const result = {};
   for (const nail of nailDesign.nails) {
-    result[nail.finger] = estimateNailRect(landmarks, nail.finger, nail.shape, canvasSize);
+    result[nail.finger] = estimateNailRect(
+      landmarks,
+      nail.finger,
+      nail.shape,
+      canvasSize,
+    );
   }
   return result;
 }

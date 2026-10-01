@@ -1,9 +1,38 @@
-// Funcional en este MVP: añadir/quitar puntos y líneas con posición fija de
-// partida (la usuaria las reposiciona arrastrando — arrastre pendiente de
-// implementar, ver TODO). Pegatinas/piedras/imágenes requieren un catálogo
-// de assets real (Fase 3) — aquí solo se define el modelo de datos y el tipo.
+// Decoraciones básicas y carga de imágenes personalizadas.
+// Las imágenes se guardan como data URL dentro del diseño para que el diseño
+// guardado en localStorage siga siendo autocontenido y pueda volver a abrirse.
 
 export default function NailDecorationPanel({ nail, onChange }) {
+  function handleImageUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      window.alert('Selecciona una imagen JPG, PNG o WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      window.alert('La imagen no puede superar 5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const deco = {
+        type: 'image',
+        src: reader.result,
+        name: file.name,
+        x: 0.5,
+        y: 0.5,
+        rotation: 0,
+        scale: 1,
+        color: '#FFFFFF',
+      };
+      onChange({ ...nail, decorations: [...nail.decorations, deco] });
+    };
+    reader.readAsDataURL(file);
+  }
+
   function addDecoration(type) {
     const deco = {
       type,
@@ -33,6 +62,16 @@ export default function NailDecorationPanel({ nail, onChange }) {
         <button type="button" disabled title="Requiere catálogo de assets (Fase 3)">
           + Piedra (pendiente)
         </button>
+        <label className="upload-design-button">
+          + Cargar diseño / imagen
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleImageUpload}
+            hidden
+          />
+        </label>
+        <small>La imagen se añade a la uña seleccionada. Máximo 5 MB.</small>
       </div>
       <ul className="decoration-list">
         {nail.decorations.map((deco, i) => (

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 150" width="100" height="150"
+     data-design-id="01a" data-shape-id="oval" data-source="Imagen 1">
+  <defs>
+    <clipPath id="clip01a"><path d="M20,138 L20,55 Q20,8 50,8 Q80,8 80,55 L80,138 Q50,148 20,138 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip01a)">
+    <rect id="baseColor" x="0" y="0" width="100" height="150" fill="#F5DFCB"/>
+    <g id="decoration">
+      <path d="M20,138 Q20,95 50,90 Q80,95 80,138 Q50,148 20,138 Z" fill="#FF8C30"/>
+      <circle cx="34" cy="105" r="1.3" fill="#FFD9A0" opacity="0.85"/>
+      <circle cx="50" cy="98" r="1.1" fill="#FFE6B8" opacity="0.9"/>
+      <circle cx="64" cy="103" r="1.4" fill="#FFD9A0" opacity="0.8"/>
+      <circle cx="44" cy="118" r="1.1" fill="#FFE6B8" opacity="0.85"/>
+      <circle cx="59" cy="122" r="1.3" fill="#FFD9A0" opacity="0.8"/>
+      <circle cx="30" cy="122" r="1.1" fill="#FFE6B8" opacity="0.75"/>
+    </g>
+  </g>
+</svg>

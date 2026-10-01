@@ -20,7 +20,8 @@ function writeLocal(list) {
 
 export function saveDesignLocal(design) {
   const list = readLocal();
-  const withId = design.id ? design : { ...design, id: crypto.randomUUID() };
+  const id = design.id || (globalThis.crypto?.randomUUID?.() || `design-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+  const withId = { ...design, id, updatedAt: new Date().toISOString() };
   const idx = list.findIndex((d) => d.id === withId.id);
   if (idx >= 0) list[idx] = withId;
   else list.push(withId);

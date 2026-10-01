@@ -1,0 +1,40 @@
+{
+  "coordinateSystem": {
+    "viewBox": [0, 0, 100, 150],
+    "note": "y crece hacia abajo. y≈8-18 es la punta libre de la uña, y≈140-148 es la línea de cutícula (base, cerca del nudillo)."
+  },
+  "shapes": {
+    "round": {
+      "baseLeft": [15, 135], "baseRight": [85, 135],
+      "tipLeft":  [15, 60],  "tipRight":  [85, 60],
+      "cuticleCenter": [50, 135], "tipCenter": [50, 60]
+    },
+    "oval": {
+      "baseLeft": [20, 138], "baseRight": [80, 138],
+      "tipLeft":  [20, 55],  "tipRight":  [80, 55],
+      "cuticleCenter": [50, 138], "tipCenter": [50, 55]
+    },
+    "almond": {
+      "baseLeft": [18, 140], "baseRight": [82, 140],
+      "tipLeft":  [50, 5],   "tipRight":  [50, 5],
+      "cuticleCenter": [50, 140], "tipCenter": [50, 5],
+      "note": "forma apuntada: tipLeft y tipRight convergen en el mismo punto"
+    },
+    "square": {
+      "baseLeft": [18, 140], "baseRight": [82, 140],
+      "tipLeft":  [33, 15],  "tipRight":  [67, 15],
+      "cuticleCenter": [50, 140], "tipCenter": [50, 15]
+    },
+    "coffin": {
+      "baseLeft": [25, 140], "baseRight": [75, 140],
+      "tipLeft":  [34, 18],  "tipRight":  [66, 18],
+      "cuticleCenter": [50, 140], "tipCenter": [50, 18]
+    },
+    "stiletto": {
+      "baseLeft": [20, 140], "baseRight": [80, 140],
+      "tipLeft":  [50, 8],   "tipRight":  [50, 8],
+      "cuticleCenter": [50, 140], "tipCenter": [50, 8],
+      "note": "forma apuntada: tipLeft y tipRight convergen en el mismo punto"
+    }
+  }
+}

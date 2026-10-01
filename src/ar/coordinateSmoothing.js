@@ -1,34 +1,34 @@
-// coordinateSmoothing.js
-// Suavizado exponencial (EMA) por dedo, para evitar el "temblor" típico de
-// landmarks frame a frame. alpha bajo = más suave pero más lag; alpha alto
-// = más reactivo pero más tembloroso. 0.35 es un punto de partida razonable
-// para 30fps; ajustar según pruebas reales en el dispositivo objetivo.
+// One-Euro adaptativo por dedo: fuerte en reposo, reactivo al mover la mano.
+export function createSmoother(options = {}) {
+  const state = new Map();
+  const config = {
+    minCutoff: options.minCutoff ?? 1.2,
+    beta: options.beta ?? 0.4,
+    dCutoff: options.dCutoff ?? 1.0,
+  };
 
-export function createSmoother(alpha = 0.35) {
-  const state = new Map(); // fingerId -> último rect suavizado
-
-  function smooth(fingerId, rect) {
+  function smooth(fingerId, rect, timestampMs = performance.now()) {
     if (!rect) {
       state.delete(fingerId);
       return null;
     }
-    const prev = state.get(fingerId);
-    if (!prev) {
-      state.set(fingerId, rect);
+
+    let filters = state.get(fingerId);
+    if (!filters) {
+      filters = createRectFilters(config);
+      state.set(fingerId, filters);
       return rect;
     }
-    const next = {
-      x: prev.x + (rect.x - prev.x) * alpha,
-      y: prev.y + (rect.y - prev.y) * alpha,
-      width: prev.width + (rect.width - prev.width) * alpha,
-      height: prev.height + (rect.height - prev.height) * alpha,
-      // Los ángulos necesitan suavizado circular para evitar saltos en el
-      // paso por ±180°.
-      angle: smoothAngle(prev.angle, rect.angle, alpha),
+
+    return {
+      x: filters.x.filter(rect.x, timestampMs),
+      y: filters.y.filter(rect.y, timestampMs),
+      width: filters.width.filter(rect.width, timestampMs),
+      height: filters.height.filter(rect.height, timestampMs),
+      angle: filters.angle.filterAngle(rect.angle, timestampMs),
       tipCurve: rect.tipCurve,
+      contour: smoothContourWithFilters(filters.contour, rect.contour, timestampMs),
     };
-    state.set(fingerId, next);
-    return next;
   }
 
   function reset() {
@@ -37,10 +37,84 @@ export function createSmoother(alpha = 0.35) {
 
   return { smooth, reset };
 }
+function createRectFilters(config) {
+  const make = () => new OneEuroScalar(config);
+  const contour = {};
+  for (const key of [
+    'baseLeft', 'baseRight', 'leftControl1', 'leftControl2',
+    'rightControl1', 'rightControl2', 'tipLeft', 'tipRight',
+  ]) {
+    contour[key] = { x: make(), y: make() };
+  }
+  contour.cuticleCurve = make();
+  return {
+    x: make(),
+    y: make(),
+    width: make(),
+    height: make(),
+    angle: makeAngleFilter(config),
+    contour,
+  };
+}
 
-function smoothAngle(prevAngle, newAngle, alpha) {
-  let diff = newAngle - prevAngle;
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
-  return prevAngle + diff * alpha;
+function smoothContourWithFilters(filters, current, timestampMs) {
+  if (!current) return null;
+  const contour = {};
+  for (const key of Object.keys(filters)) {
+    if (key === 'cuticleCurve') continue;
+    contour[key] = {
+      x: filters[key].x.filter(current[key].x, timestampMs),
+      y: filters[key].y.filter(current[key].y, timestampMs),
+    };
+  }
+  contour.cuticleCurve = filters.cuticleCurve.filter(current.cuticleCurve, timestampMs);
+  return contour;
+}class OneEuroScalar {
+  constructor({ minCutoff: min, beta: b, dCutoff: dc }) {
+    this.minCutoff = min;
+    this.beta = b;
+    this.dCutoff = dc;
+    this.x = null;
+    this.dx = 0;
+    this.lastTime = null;
+  }
+
+  filter(value, timestampMs) {
+    if (this.lastTime == null) {
+      this.lastTime = timestampMs;
+      this.x = value;
+      return value;
+    }
+    let dt = (timestampMs - this.lastTime) / 1000;
+    if (!(dt > 0)) dt = 1 / 30;
+    this.lastTime = timestampMs;
+    const rawDx = (value - this.x) / dt;
+    const dAlpha = lowPassAlpha(this.dCutoff, dt);
+    this.dx += (rawDx - this.dx) * dAlpha;
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    const alpha = lowPassAlpha(cutoff, dt);
+    this.x += (value - this.x) * alpha;
+    return this.x;
+  }
+}
+
+function makeAngleFilter(config) {
+  const scalar = new OneEuroScalar(config);
+  return {
+    filter(value, timestampMs) {
+      return scalar.filter(value, timestampMs);
+    },
+    filterAngle(value, timestampMs) {
+      if (scalar.x == null) return scalar.filter(value, timestampMs);
+      let delta = value - scalar.x;
+      while (delta > Math.PI) delta -= Math.PI * 2;
+      while (delta < -Math.PI) delta += Math.PI * 2;
+      return scalar.filter(scalar.x + delta, timestampMs);
+    },
+  };
+}
+
+function lowPassAlpha(cutoff, dt) {
+  const tau = 1 / (2 * Math.PI * cutoff);
+  return 1 / (1 + tau / dt);
 }
