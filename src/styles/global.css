@@ -365,3 +365,21 @@ button.primary:hover { background: #176B00; }
   .app-header__nav { width: 100%; justify-content: flex-start; gap: 4px 10px; }
   .app-header__nav a { font-size: .86rem; padding: 7px 6px; }
 }
+
+/* Greenlanters AR visual continuity */
+.app-header { min-height: 64px; padding: 8px 14px; gap: 12px; backdrop-filter: blur(12px); }
+.app-header .brand { color:#F7F8EF; font-size:.86rem; }
+.app-header__brand { color:#F7F8EF; text-decoration:none; }
+.app-header nav { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+.app-header nav::-webkit-scrollbar { display:none; }
+.app-header nav a { margin-left:0; padding:8px 9px; border-radius:9px; white-space:nowrap; }
+.app-header nav a:hover, .app-header nav a:focus-visible { background:rgba(140,255,0,.12); color:#B7FF00; }
+.page { width:min(100%, 820px); }
+.ar-camera__viewport { border:1px solid rgba(140,255,0,.28); border-radius:18px; }
+.ar-hint { border:1px solid rgba(140,255,0,.22); backdrop-filter:blur(8px); }
+button.primary { box-shadow:0 6px 18px rgba(8,45,5,.16); }
+@media (max-width:600px) {
+  .app-header { align-items:center; padding:8px 10px; }
+  .app-header nav a { font-size:.74rem; padding:7px 7px; }
+  .page { padding:12px 10px 24px; }
+}
